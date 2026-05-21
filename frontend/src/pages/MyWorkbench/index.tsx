@@ -74,6 +74,7 @@ type EffortRow = {
   work: string
   object_type: string
   object_id: number
+  object_title?: string
 }
 
 type EffortLike = {
@@ -83,6 +84,7 @@ type EffortLike = {
   work: string
   object_type: string
   object_id: number
+  object_title?: string
 }
 
 type SyncInfo = {
@@ -305,6 +307,17 @@ const MyWorkbenchPage: React.FC = () => {
   const taskOptions = useMemo(() => {
     return (tasks ?? []).map((t) => ({ value: t.id, label: `${t.id} · ${t.name}` }))
   }, [tasks])
+
+  const taskNameById = useMemo(() => {
+    const m = new Map<number, string>()
+    for (const t of tasks) m.set(t.id, t.name)
+    for (const e of aggregate?.external ?? []) {
+      if (e.source_type === 'task' && e.source_id > 0 && e.title) {
+        m.set(e.source_id, e.title)
+      }
+    }
+    return m
+  }, [tasks, aggregate])
 
   const refreshAuth = async () => {
     try {
@@ -543,13 +556,15 @@ const MyWorkbenchPage: React.FC = () => {
     left: number
   }, effortId?: number) => {
     const workDate = payload.work_date || today
+    const taskId = Number(payload.task_id)
     const optimisticRow: EffortRow = {
       id: typeof effortId === 'number' && effortId > 0 ? effortId : -Date.now(),
       work_date: workDate,
       consumed: Number(payload.consumed ?? 0),
       work: String(payload.work ?? ''),
       object_type: 'task',
-      object_id: Number(payload.task_id),
+      object_id: taskId,
+      object_title: tasks.find((t) => t.id === taskId)?.name,
     }
 
     if (workDate === today) {
@@ -569,7 +584,7 @@ const MyWorkbenchPage: React.FC = () => {
         consumed: Number(task.consumed ?? 0) + optimisticRow.consumed,
       }
     }))
-  }, [today])
+  }, [today, tasks])
 
   const refreshAfterEffortSubmit = useCallback(async (account: string, page: number, pageSize: number) => {
     await Promise.allSettled([
@@ -801,19 +816,34 @@ const MyWorkbenchPage: React.FC = () => {
         size="small"
         style={{ marginTop: 6 }}
         dataSource={rows}
-        renderItem={(it) => (
-          <List.Item style={{ padding: '6px 0' }}>
-            <div>
-              <Tag color="blue">{Number(it.consumed ?? 0).toFixed(1)}h</Tag>
-              <Text style={{ fontSize: 13 }}>{it.work}</Text>
-              <div style={{ marginTop: 2 }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  {it.object_type} #{it.object_id}
-                </Text>
+        renderItem={(it) => {
+          const isTask = String(it.object_type ?? '').trim().toLowerCase() === 'task'
+          const taskId = isTask ? Number(it.object_id ?? 0) : 0
+          const taskName =
+            it.object_title?.trim() ||
+            (taskId > 0 ? taskNameById.get(taskId) : undefined) ||
+            (taskId > 0 ? `#${taskId}` : '')
+          return (
+            <List.Item style={{ padding: '6px 0' }}>
+              <div>
+                <Tag color="blue">{Number(it.consumed ?? 0).toFixed(1)}h</Tag>
+                <Text style={{ fontSize: 13 }}>{it.work}</Text>
+                {taskId > 0 ? (
+                  <div style={{ marginTop: 2, fontSize: 12 }}>
+                    <Text type="secondary">任务：</Text>
+                    <Link
+                      to={myWorkbenchTaskDetailHref(taskId)}
+                      style={{ color: 'var(--zm-text-primary)' }}
+                      onClick={() => setDayDetailModalOpen(false)}
+                    >
+                      {taskName}
+                    </Link>
+                  </div>
+                ) : null}
               </div>
-            </div>
-          </List.Item>
-        )}
+            </List.Item>
+          )
+        }}
       />
     )
   }

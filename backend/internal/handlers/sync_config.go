@@ -12,7 +12,10 @@ import (
 // GetSyncSettings GET /api/config/sync-settings
 func GetSyncSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"interval_minutes": config.Global.SyncIntervalMinutes,
+		"interval_minutes":         config.Global.SyncIntervalMinutes,
+		"effort_reconcile_enabled": config.Global.EffortReconcileEnabled,
+		"effort_reconcile_hour":    config.ClampEffortReconcileHour(config.Global.EffortReconcileHour),
+		"effort_reconcile_days":    config.ClampEffortReconcileDays(config.Global.EffortReconcileDays),
 	})
 }
 

@@ -36,6 +36,11 @@ func main() {
 	config.Global.ZentaoBaseURL = db.GetZentaoBaseURL()
 	config.Global.ZentaoLoginURL = db.GetZentaoLoginURL()
 	log.Printf("[main] sync interval: %d min (env default + app_settings)", config.Global.SyncIntervalMinutes)
+	if config.Global.EffortReconcileEnabled {
+		log.Printf("[main] daily effort reconcile: %02d:00 local, %d days",
+			config.ClampEffortReconcileHour(config.Global.EffortReconcileHour),
+			config.ClampEffortReconcileDays(config.Global.EffortReconcileDays))
+	}
 	log.Printf("[main] zentao base url: %s (env default + app_settings)", config.Global.ZentaoBaseURL)
 	log.Printf("[main] zentao login url: %s (env default + app_settings)", config.Global.ZentaoLoginURL)
 
@@ -54,6 +59,7 @@ func main() {
 
 	// 4. Periodic ETL (interval persisted in PG, configurable via UI / SYNC_INTERVAL_MINUTES)
 	scheduler.StartPeriodicETL(context.Background())
+	scheduler.StartDailyEffortReconcile(context.Background())
 	scheduler.StartPeriodicZentaoAuthRefresh(context.Background())
 
 	// 5. Build Gin router
@@ -148,6 +154,7 @@ func main() {
 
 		// Sync
 		api.POST("/sync/trigger", handlers.TriggerSync)
+		api.POST("/sync/effort-reconcile", handlers.TriggerEffortReconcile)
 		api.GET("/sync/status", handlers.GetSyncStatus)
 
 		// Zentao auth (session)

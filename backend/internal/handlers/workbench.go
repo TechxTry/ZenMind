@@ -539,7 +539,7 @@ func ListEfforts(c *gin.Context) {
 	query.Count(&total)
 	var rows []models.LocalEffort
 	query.Offset((page - 1) * pageSize).Limit(pageSize).Order("work_date DESC").Find(&rows)
-	c.JSON(http.StatusOK, pageResponse(rows, total, page, pageSize))
+	c.JSON(http.StatusOK, pageResponse(effortsWithTitles(rows), total, page, pageSize))
 }
 
 // ListExecutions GET /api/workbench/executions

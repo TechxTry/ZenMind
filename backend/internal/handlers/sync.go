@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"zenmind/internal/config"
 	"zenmind/internal/db"
 	"zenmind/internal/etl"
 	"zenmind/internal/models"
@@ -20,6 +21,33 @@ func TriggerSync(c *gin.Context) {
 	}
 	go etl.RunAll()
 	c.JSON(http.StatusAccepted, gin.H{"message": "sync started"})
+}
+
+// TriggerEffortReconcile POST /api/sync/effort-reconcile — daily effort date-window reconcile (admin).
+func TriggerEffortReconcile(c *gin.Context) {
+	if _, ok := RequireAdmin(c); !ok {
+		return
+	}
+	if db.GetZentao() == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Zentao datasource not configured"})
+		return
+	}
+	if !config.Global.EffortReconcileEnabled {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "daily effort reconcile is disabled (EFFORT_RECONCILE_ENABLED=false)"})
+		return
+	}
+	if kind := etl.ActiveRunKind(); kind != "" {
+		c.JSON(http.StatusConflict, gin.H{
+			"error":   "another ETL job is running",
+			"running": kind,
+		})
+		return
+	}
+	go etl.RunEffortsDailyReconcile()
+	c.JSON(http.StatusAccepted, gin.H{
+		"message": "effort daily reconcile started",
+		"days":    config.ClampEffortReconcileDays(config.Global.EffortReconcileDays),
+	})
 }
 
 // GetSyncStatus GET /api/sync/status

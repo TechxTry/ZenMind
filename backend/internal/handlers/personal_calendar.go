@@ -387,7 +387,7 @@ func GetMyCalendarAggregate(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"efforts":        efforts,
+		"efforts":        effortsWithTitles(efforts),
 		"external":       external,
 		"feed_errors":    feedErrors,
 		"account_errors": accountErrors,

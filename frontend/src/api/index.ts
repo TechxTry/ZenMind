@@ -74,6 +74,7 @@ export type CalendarAggregate = {
     work: string
     object_type: string
     object_id: number
+    object_title?: string
   }>
   external: CalendarExternalEvent[]
   feed_errors?: Array<{ feed_id: number; feed_name: string; error: string }>
@@ -382,4 +383,5 @@ export const getPeopleBottleneck = (params: PeopleAnalyticsParams) =>
 
 // ---- Sync ----
 export const triggerSync = () => http.post('/sync/trigger').then((r) => r.data)
+export const triggerEffortReconcile = () => http.post('/sync/effort-reconcile').then((r) => r.data)
 export const getSyncStatus = () => http.get('/sync/status').then((r) => r.data)

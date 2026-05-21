@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import {
-  Typography, Button, Table, Space, DatePicker, Tag, Tooltip, Modal, message, Descriptions, Divider,
+  Typography, Button, Table, Space, DatePicker, Tag, Tooltip, Modal, message, Descriptions, Collapse, Tabs,
 } from 'antd'
-import { ArrowLeftOutlined, EyeOutlined, SearchOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, EyeOutlined, LinkOutlined, SearchOutlined } from '@ant-design/icons'
 import JsonView from '@uiw/react-json-view'
 import dayjs, { Dayjs } from 'dayjs'
-import { getTask, listEfforts } from '../../api'
+import { getTask, getZentaoAPIConfig, listEfforts } from '../../api'
 import { useAuthStore } from '../../store/auth'
+import { buildZentaoTaskViewUrl } from '../../utils/zentaoUrls'
 import { taskTypeLabel, taskStatusLabel, useMemberPersonDisplay } from './workbenchDisplay'
 
 const { RangePicker } = DatePicker
@@ -55,9 +56,8 @@ const TaskFullDetailPanel: React.FC<{
 }> = ({ task, personOf, onViewJson }) => {
   const raw = taskRawData(task)
   return (
-    <div style={{ ...panelStyle, marginBottom: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-        <Text style={{ color: 'var(--zm-text-primary)', fontWeight: 600 }}>全部明细数据</Text>
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
         <Button size="small" icon={<EyeOutlined />} onClick={onViewJson}>
           弹窗查看 JSON
         </Button>
@@ -99,30 +99,41 @@ const TaskFullDetailPanel: React.FC<{
         <Descriptions.Item label="已删除">{formatDetailValue(task.deleted)}</Descriptions.Item>
         <Descriptions.Item label="同步时间">{formatDetailValue(task.synced_at)}</Descriptions.Item>
       </Descriptions>
-      <Divider style={{ margin: '16px 0 12px' }} />
-      <Text style={{ color: 'var(--zm-text-primary)', fontWeight: 600, display: 'block', marginBottom: 8 }}>
-        禅道原始数据 (raw_data)
-      </Text>
-      {raw ? (
-        <div
-          style={{
-            maxHeight: 480,
-            overflow: 'auto',
-            padding: 12,
-            borderRadius: 8,
-            border: '1px solid var(--zm-border-subtle)',
-            background: 'rgba(0,0,0,0.15)',
-          }}
-        >
-          <JsonView
-            value={raw}
-            collapsed={2}
-            style={{ background: 'transparent', fontSize: 13, fontFamily: 'monospace' }}
-          />
-        </div>
-      ) : (
-        <Text type="secondary" style={{ fontSize: 12 }}>暂无 raw_data</Text>
-      )}
+      <Collapse
+        bordered={false}
+        defaultActiveKey={[]}
+        style={{ marginTop: 16, background: 'transparent' }}
+        items={[
+          {
+            key: 'raw',
+            label: (
+              <Text style={{ color: 'var(--zm-text-primary)', fontWeight: 600 }}>
+                禅道原始数据 (raw_data)
+              </Text>
+            ),
+            children: raw ? (
+              <div
+                style={{
+                  maxHeight: 480,
+                  overflow: 'auto',
+                  padding: 12,
+                  borderRadius: 8,
+                  border: '1px solid var(--zm-border-subtle)',
+                  background: 'rgba(0,0,0,0.15)',
+                }}
+              >
+                <JsonView
+                  value={raw}
+                  collapsed={2}
+                  style={{ background: 'transparent', fontSize: 13, fontFamily: 'monospace' }}
+                />
+              </div>
+            ) : (
+              <Text type="secondary" style={{ fontSize: 12 }}>暂无 raw_data</Text>
+            ),
+          },
+        ]}
+      />
     </div>
   )
 }
@@ -177,10 +188,17 @@ const TaskDetailPage: React.FC = () => {
   const [page, setPage] = useState(1)
   const [effortLoading, setEffortLoading] = useState(false)
   const [rawData, setRawData] = useState<object | null>(null)
+  const [zentaoBaseUrl, setZentaoBaseUrl] = useState('')
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>(() => [
     dayjs().subtract(89, 'day'),
     dayjs(),
   ])
+
+  useEffect(() => {
+    getZentaoAPIConfig()
+      .then((d) => setZentaoBaseUrl(String(d?.base_url ?? '').trim()))
+      .catch(() => setZentaoBaseUrl(''))
+  }, [])
 
   const loadTask = useCallback(async () => {
     if (!Number.isFinite(taskId) || taskId <= 0) return
@@ -246,6 +264,10 @@ const TaskDetailPage: React.FC = () => {
   const handleSearch = () => {
     void loadEfforts()
   }
+
+  const zentaoTaskUrl = task
+    ? buildZentaoTaskViewUrl(zentaoBaseUrl, taskId, task.execution_id as number | undefined)
+    : null
 
   const effortColumns = [
     { title: 'ID', dataIndex: 'id', width: 70 },
@@ -318,7 +340,20 @@ const TaskDetailPage: React.FC = () => {
         <>
           <div style={{ ...panelStyle, marginBottom: 20 }}>
             <Space direction="vertical" size={8} style={{ width: '100%' }}>
-              <Text style={{ color: 'var(--zm-text-primary)', fontSize: 16 }}>{String(task.name ?? '')}</Text>
+              <Space align="center" wrap>
+                <Text style={{ color: 'var(--zm-text-primary)', fontSize: 16 }}>{String(task.name ?? '')}</Text>
+                {zentaoTaskUrl ? (
+                  <Button
+                    size="small"
+                    icon={<LinkOutlined />}
+                    href={zentaoTaskUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    禅道任务
+                  </Button>
+                ) : null}
+              </Space>
               <Space wrap>
                 <Tag color={STATUS_COLORS[String(task.status)] ?? 'default'}>
                   {taskStatusLabel(String(task.status ?? ''))}
@@ -331,53 +366,74 @@ const TaskDetailPage: React.FC = () => {
             </Space>
           </div>
 
-          <TaskFullDetailPanel task={task} personOf={personOf} onViewJson={() => setRawData(taskRawData(task) ?? task)} />
-
           <div style={panelStyle}>
-            <Text style={{ color: 'var(--zm-text-primary)', fontWeight: 600, display: 'block', marginBottom: 12 }}>报工明细</Text>
-            <div style={{ marginBottom: 8, color: 'var(--zm-text-muted)', fontSize: 12 }}>
-              仅展示关联本任务的报工记录；时间跨度最多 6 个月
-            </div>
-            <Space wrap style={{ marginBottom: 16 }}>
-              <RangePicker
-                value={dateRange}
-                onChange={(dates) => {
-                  if (dates?.[0] && dates?.[1]) {
-                    setDateRange([dates[0], dates[1]])
-                    setPage(1)
-                  }
-                }}
-                disabledDate={(current) => {
-                  if (!dateRange) return false
-                  return Math.abs(current.diff(dateRange[0], 'day')) > 180
-                }}
-                placeholder={['开始日期', '结束日期 (最多半年)']}
-              />
-              <Button
-                type="primary"
-                icon={<SearchOutlined />}
-                onClick={handleSearch}
-                style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}
-              >
-                查询
-              </Button>
-            </Space>
-            <Table
-              dataSource={efforts}
-              columns={effortColumns}
-              rowKey="id"
-              loading={effortLoading}
-              size="small"
-              pagination={{
-                current: page,
-                total,
-                pageSize: 20,
-                showTotal: (t) => `共 ${t} 条`,
-                onChange: setPage,
-                showSizeChanger: false,
-              }}
-              scroll={{ x: 800 }}
-              style={{ background: 'transparent' }}
+            <Tabs
+              defaultActiveKey="efforts"
+              items={[
+                {
+                  key: 'efforts',
+                  label: '报工明细',
+                  children: (
+                    <>
+                      <div style={{ marginBottom: 8, color: 'var(--zm-text-muted)', fontSize: 12 }}>
+                        仅展示关联本任务的报工记录；时间跨度最多 6 个月
+                      </div>
+                      <Space wrap style={{ marginBottom: 16 }}>
+                        <RangePicker
+                          value={dateRange}
+                          onChange={(dates) => {
+                            if (dates?.[0] && dates?.[1]) {
+                              setDateRange([dates[0], dates[1]])
+                              setPage(1)
+                            }
+                          }}
+                          disabledDate={(current) => {
+                            if (!dateRange) return false
+                            return Math.abs(current.diff(dateRange[0], 'day')) > 180
+                          }}
+                          placeholder={['开始日期', '结束日期 (最多半年)']}
+                        />
+                        <Button
+                          type="primary"
+                          icon={<SearchOutlined />}
+                          onClick={handleSearch}
+                          style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}
+                        >
+                          查询
+                        </Button>
+                      </Space>
+                      <Table
+                        dataSource={efforts}
+                        columns={effortColumns}
+                        rowKey="id"
+                        loading={effortLoading}
+                        size="small"
+                        pagination={{
+                          current: page,
+                          total,
+                          pageSize: 20,
+                          showTotal: (t) => `共 ${t} 条`,
+                          onChange: setPage,
+                          showSizeChanger: false,
+                        }}
+                        scroll={{ x: 800 }}
+                        style={{ background: 'transparent' }}
+                      />
+                    </>
+                  ),
+                },
+                {
+                  key: 'detail',
+                  label: '明细数据',
+                  children: (
+                    <TaskFullDetailPanel
+                      task={task}
+                      personOf={personOf}
+                      onViewJson={() => setRawData(taskRawData(task) ?? task)}
+                    />
+                  ),
+                },
+              ]}
             />
           </div>
         </>

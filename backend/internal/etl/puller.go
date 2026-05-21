@@ -16,24 +16,6 @@ import (
 	"zenmind/internal/source"
 )
 
-// RunAll runs all enabled ETL pipelines sequentially.
-func RunAll() {
-	log.Println("[etl] starting full sync pipeline")
-	SyncUsers()
-	SyncTasks()
-	SyncStories()
-	SyncBugs()
-	SyncEfforts()
-	SyncPrograms()
-	SyncProjects()
-	SyncProductLines()
-	SyncProducts()
-	SyncExecutions()
-	SyncActions()
-	SyncHistories()
-	log.Println("[etl] full sync pipeline complete")
-}
-
 // ---- watermark helpers ----
 
 func getWatermark(targetTable string) time.Time {
@@ -357,27 +339,8 @@ func SyncEfforts() {
 	}
 
 	now := time.Now()
-	upsert := func(r source.ZtEffort) {
-		m := models.LocalEffort{
-			ID: r.ID, Account: r.Account,
-			WorkDate:   db.SafeTime(r.Date),
-			Consumed:   r.Consumed,
-			Work:       r.Work,
-			ObjectType: r.ObjectType,
-			ObjectID:   r.ObjectID,
-			Deleted:    r.Deleted == "1",
-			RawData:    db.RowToJSONB(r),
-			SyncedAt:   now,
-		}
-		db.PG.Save(&m)
-	}
-
-	for _, r := range newRows {
-		upsert(r)
-	}
-	for _, r := range reconcileRows {
-		upsert(r)
-	}
+	all := append(append([]source.ZtEffort{}, newRows...), reconcileRows...)
+	upsertEffortRows(all, now)
 
 	log.Printf(
 		"[etl] SyncEfforts(%s→%s): upserted new=%d reconcile=%d (id_window=%d, lastID=%d)",

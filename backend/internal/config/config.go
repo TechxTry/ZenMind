@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -39,6 +40,11 @@ type Config struct {
 	// ETL
 	SyncIntervalMinutes int
 
+	// Daily effort reconcile (wide date-window sync; mutually exclusive with RunAll)
+	EffortReconcileEnabled bool
+	EffortReconcileHour    int // local time 0–23
+	EffortReconcileDays    int // calendar days back from today
+
 	// Zentao auth auto refresh
 	ZentaoAuthRefreshMinutes int
 }
@@ -66,6 +72,9 @@ func Load() {
 		ZentaoCredSecret: getEnv("ZT_CRED_SECRET", ""),
 
 		SyncIntervalMinutes:      ClampSyncIntervalMinutes(getEnvInt("SYNC_INTERVAL_MINUTES", 15)),
+		EffortReconcileEnabled:   getEnvBool("EFFORT_RECONCILE_ENABLED", true),
+		EffortReconcileHour:      ClampEffortReconcileHour(getEnvIntRaw("EFFORT_RECONCILE_HOUR", 3)),
+		EffortReconcileDays:      ClampEffortReconcileDays(getEnvIntRaw("EFFORT_RECONCILE_DAYS", 180)),
 		ZentaoAuthRefreshMinutes: ClampZentaoAuthRefreshMinutes(getEnvIntRaw("ZT_AUTH_REFRESH_MINUTES", 30)),
 	}
 
@@ -81,6 +90,43 @@ func ClampSyncIntervalMinutes(n int) int {
 		return 1440
 	}
 	return n
+}
+
+// ClampEffortReconcileHour limits daily run hour to [0, 23] local time.
+func ClampEffortReconcileHour(h int) int {
+	if h < 0 {
+		return 0
+	}
+	if h > 23 {
+		return 23
+	}
+	return h
+}
+
+// ClampEffortReconcileDays limits the calendar window to [30, 366] days.
+func ClampEffortReconcileDays(d int) int {
+	if d < 30 {
+		return 30
+	}
+	if d > 366 {
+		return 366
+	}
+	return d
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
 }
 
 // ClampZentaoAuthRefreshMinutes limits auto-refresh interval to [5, 1440] minutes.

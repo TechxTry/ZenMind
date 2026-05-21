@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { Card, Form, Input, Button, Row, Col, message, Space, Typography,
   Divider, Badge, Statistic, Spin, InputNumber } from 'antd'
 import { CheckCircleOutlined, SyncOutlined } from '@ant-design/icons'
-import { getDatasource, putDatasource, testDatasource, triggerSync, getSyncStatus, getLocalStats,
-  getSyncSettings, putSyncSettings } from '../../api'
+import { getDatasource, putDatasource, testDatasource, triggerSync, triggerEffortReconcile,
+  getSyncStatus, getLocalStats, getSyncSettings, putSyncSettings } from '../../api'
 import dayjs from 'dayjs'
 
 const { Title, Text } = Typography
@@ -34,6 +34,10 @@ const ConfigPage: React.FC = () => {
   const [statusLoading, setStatusLoading] = useState(false)
   const [syncIntervalMinutes, setSyncIntervalMinutes] = useState(15)
   const [savingInterval, setSavingInterval] = useState(false)
+  const [reconciling, setReconciling] = useState(false)
+  const [effortReconcileEnabled, setEffortReconcileEnabled] = useState(true)
+  const [effortReconcileHour, setEffortReconcileHour] = useState(3)
+  const [effortReconcileDays, setEffortReconcileDays] = useState(180)
 
   useEffect(() => {
     getDatasource().then((d: any) => form.setFieldsValue(d)).catch(() => {})
@@ -45,7 +49,12 @@ const ConfigPage: React.FC = () => {
     Promise.all([
       getSyncStatus().then((d: { tables: Record<string, SyncInfo> }) => d.tables ?? {}),
       getLocalStats().then((d: { tables: Record<string, number>; total: number }) => d),
-      getSyncSettings().then((d: { interval_minutes: number }) => d),
+      getSyncSettings().then((d: {
+        interval_minutes: number
+        effort_reconcile_enabled?: boolean
+        effort_reconcile_hour?: number
+        effort_reconcile_days?: number
+      }) => d),
     ])
       .then(([tables, stats, sync]) => {
         setSyncStatus(tables)
@@ -53,6 +62,15 @@ const ConfigPage: React.FC = () => {
         setLocalTotal(stats.total ?? 0)
         if (typeof sync?.interval_minutes === 'number') {
           setSyncIntervalMinutes(sync.interval_minutes)
+        }
+        if (typeof sync?.effort_reconcile_enabled === 'boolean') {
+          setEffortReconcileEnabled(sync.effort_reconcile_enabled)
+        }
+        if (typeof sync?.effort_reconcile_hour === 'number') {
+          setEffortReconcileHour(sync.effort_reconcile_hour)
+        }
+        if (typeof sync?.effort_reconcile_days === 'number') {
+          setEffortReconcileDays(sync.effort_reconcile_days)
         }
       })
       .catch(() => {})
@@ -101,6 +119,25 @@ const ConfigPage: React.FC = () => {
       message.error(e.response?.data?.error ?? '触发失败')
     } finally {
       setSyncing(false)
+    }
+  }
+
+  const handleEffortReconcile = async () => {
+    setReconciling(true)
+    try {
+      await triggerEffortReconcile()
+      message.success('报工日对账已触发，请稍后刷新状态')
+      setTimeout(fetchStatus, 5000)
+    } catch (e: any) {
+      const err = e.response?.data?.error
+      const running = e.response?.data?.running
+      if (e.response?.status === 409 && running) {
+        message.warning(`当前有同步任务进行中（${running}），请稍后再试`)
+      } else {
+        message.error(err ?? '触发失败')
+      }
+    } finally {
+      setReconciling(false)
     }
   }
 
@@ -234,6 +271,14 @@ const ConfigPage: React.FC = () => {
               style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}>
               立即同步
             </Button>
+            <Button
+              size="small"
+              onClick={handleEffortReconcile}
+              loading={reconciling}
+              disabled={!effortReconcileEnabled}
+            >
+              报工日对账
+            </Button>
           </Space>
         }
       >
@@ -254,6 +299,16 @@ const ConfigPage: React.FC = () => {
             </Button>
             <Text style={{ color: 'var(--zm-text-muted)', fontSize: 11 }}>
               范围 1～1440；保存后立即按新周期间隔重新计时（若此时正在跑 ETL，需等其结束后再进入等待）
+            </Text>
+          </div>
+          <div style={{
+            marginBottom: 20, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12,
+          }}>
+            <Text style={{ color: 'var(--zm-text-secondary)', fontSize: 13 }}>报工日对账</Text>
+            <Text style={{ color: 'var(--zm-text-muted)', fontSize: 11 }}>
+              {effortReconcileEnabled
+                ? `每天 ${String(effortReconcileHour).padStart(2, '0')}:00 自动执行；手动触发将回刷近 ${effortReconcileDays} 天报工（与增量同步互斥）`
+                : '已在环境变量中关闭（EFFORT_RECONCILE_ENABLED=false）'}
             </Text>
           </div>
           <Row gutter={[16, 16]}>
