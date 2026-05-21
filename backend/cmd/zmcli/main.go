@@ -1,4 +1,4 @@
-// zbcli：本地命令行调用 ZenBoard 后端，由服务端代用户向禅道提交报工（POST /api/zentao/efforts）。
+// zmcli：本地命令行调用 ZenMind 后端，由服务端代用户向禅道提交报工（POST /api/zentao/efforts）。
 package main
 
 import (
@@ -33,23 +33,23 @@ func main() {
 
 func printUsage(w io.Writer) {
 	fmt.Fprintf(w, `用法:
-  zbcli effort [选项]     向禅道提交一条任务报工（经 ZenBoard 后端）
+  zmcli effort [选项]     向禅道提交一条任务报工（经 ZenMind 后端）
 
 环境变量（可被同名命令行参数覆盖）:
-  ZENBOARD_URL           后端根地址，默认 http://127.0.0.1:8080
-  ZENBOARD_USERNAME      ZenBoard 登录用户名
-  ZENBOARD_PASSWORD      ZenBoard 登录密码
-  ZENBOARD_TOKEN         若已持有 JWT，可跳过登录（勿长期写入 shell 历史）
+  ZENMIND_URL           后端根地址，默认 http://127.0.0.1:8080
+  ZENMIND_USERNAME      ZenMind 登录用户名
+  ZENMIND_PASSWORD      ZenMind 登录密码
+  ZENMIND_TOKEN         若已持有 JWT，可跳过登录（勿长期写入 shell 历史）
 
 前置条件:
   - 后端已配置禅道 Base URL；当前用户在 Web「禅道授权」中已绑定有效禅道凭证（与浏览器报工一致）。
 
 示例:
-  export ZENBOARD_URL=http://localhost:8080
-  export ZENBOARD_USERNAME=admin
-  export ZENBOARD_PASSWORD='***'
-  zbcli effort -task 12345 -work "联调接口" -consumed 2 -left 6
-  zbcli effort -task 12345 -work "修 bug" -consumed 1 -left 0 -date 2026-05-16
+  export ZENMIND_URL=http://localhost:8080
+  export ZENMIND_USERNAME=admin
+  export ZENMIND_PASSWORD='***'
+  zmcli effort -task 12345 -work "联调接口" -consumed 2 -left 6
+  zmcli effort -task 12345 -work "修 bug" -consumed 1 -left 0 -date 2026-05-16
 
 `)
 }
@@ -57,14 +57,14 @@ func printUsage(w io.Writer) {
 func runEffort(args []string) int {
 	fs := flag.NewFlagSet("effort", flag.ExitOnError)
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "用法: zbcli effort [选项]\n\n选项:\n")
+		fmt.Fprintf(fs.Output(), "用法: zmcli effort [选项]\n\n选项:\n")
 		fs.PrintDefaults()
 	}
 
-	baseURL := fs.String("url", strings.TrimSpace(os.Getenv("ZENBOARD_URL")), "ZenBoard 后端根 URL")
-	username := fs.String("user", strings.TrimSpace(os.Getenv("ZENBOARD_USERNAME")), "ZenBoard 用户名")
-	password := fs.String("password", strings.TrimSpace(os.Getenv("ZENBOARD_PASSWORD")), "ZenBoard 密码")
-	token := fs.String("token", strings.TrimSpace(os.Getenv("ZENBOARD_TOKEN")), "已有 JWT，非空则跳过登录")
+	baseURL := fs.String("url", strings.TrimSpace(os.Getenv("ZENMIND_URL")), "ZenMind 后端根 URL")
+	username := fs.String("user", strings.TrimSpace(os.Getenv("ZENMIND_USERNAME")), "ZenMind 用户名")
+	password := fs.String("password", strings.TrimSpace(os.Getenv("ZENMIND_PASSWORD")), "ZenMind 密码")
+	token := fs.String("token", strings.TrimSpace(os.Getenv("ZENMIND_TOKEN")), "已有 JWT，非空则跳过登录")
 	taskID := fs.Int64("task", 0, "禅道任务 ID（必填）")
 	work := fs.String("work", "", "工作内容说明（必填）")
 	consumed := fs.Float64("consumed", -1, "本次消耗工时（必填）")
@@ -101,7 +101,7 @@ func runEffort(args []string) int {
 		jwt = strings.TrimSpace(*token)
 	} else {
 		if strings.TrimSpace(*username) == "" || strings.TrimSpace(*password) == "" {
-			fmt.Fprintln(os.Stderr, "需要 ZenBoard 凭证：设置 ZENBOARD_USERNAME / ZENBOARD_PASSWORD，或使用 -token")
+			fmt.Fprintln(os.Stderr, "需要 ZenMind 凭证：设置 ZENMIND_USERNAME / ZENMIND_PASSWORD，或使用 -token")
 			return 2
 		}
 		jwt, err = login(client, apiBase, *username, *password)
@@ -181,7 +181,7 @@ func postJSON(client *http.Client, url, bearer string, payload any) ([]byte, int
 		return nil, 0, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "zenboard-zbcli")
+	req.Header.Set("User-Agent", "zenmind-zmcli")
 	if bearer != "" {
 		req.Header.Set("Authorization", "Bearer "+bearer)
 	}

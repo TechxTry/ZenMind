@@ -127,6 +127,33 @@ const MemberSelect: React.FC<{
   )
 }
 
+const IdSearchInput: React.FC<{
+  placeholder?: string
+  value?: number
+  width?: number
+  onChange: (id: number | undefined) => void
+}> = ({ placeholder = 'ID', value, width = 140, onChange }) => (
+  <Input
+    allowClear
+    placeholder={placeholder}
+    style={{ width }}
+    value={value?.toString() ?? ''}
+    onChange={(e) => {
+      const raw = e.target.value.trim()
+      if (!raw) {
+        onChange(undefined)
+        return
+      }
+      const n = Number(raw)
+      if (!Number.isFinite(n) || n <= 0) {
+        onChange(undefined)
+        return
+      }
+      onChange(Math.trunc(n))
+    }}
+  />
+)
+
 const AccountInput: React.FC<{
   value?: string
   placeholder?: string
@@ -175,13 +202,13 @@ const STATUS_COLORS: Record<string, string> = {
 const RawDataModal: React.FC<{ data: object | null; onClose: () => void }> = ({ data, onClose }) => (
   <Modal
     open={!!data}
-    title={<Text style={{ color: 'var(--zb-text-primary)' }}>原始数据 (raw_data)</Text>}
+    title={<Text style={{ color: 'var(--zm-text-primary)' }}>原始数据 (raw_data)</Text>}
     onCancel={onClose}
     footer={null}
     width={700}
     styles={{
-      content: { background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 },
-      header: { background: 'var(--zb-bg-surface)' },
+      content: { background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 },
+      header: { background: 'var(--zm-bg-surface)' },
     }}
   >
     {data && (
@@ -256,7 +283,7 @@ function useWorkbenchTab(
         <Tooltip title="查看原始数据">
           <Button
             size="small" type="text" icon={<EyeOutlined />}
-            style={{ color: 'var(--zb-text-muted)' }}
+            style={{ color: 'var(--zm-text-muted)' }}
             onClick={() => setRawData(row.raw_data ?? row)}
           />
         </Tooltip>
@@ -279,7 +306,7 @@ function useWorkbenchTab(
         <Space wrap style={{ marginBottom: 16 }}>
           {filterSlot}
           <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}
-            style={{ background: 'var(--zb-brand-gradient)', border: 'none' }}>
+            style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}>
             查询
           </Button>
         </Space>
@@ -328,7 +355,7 @@ const TaskTab: React.FC = () => {
         render: (v: string, r: { id: number }) => (
           <Link
             to={effectiveGroupId ? `/workbench/task/${r.id}?group_id=${effectiveGroupId}&from=/workbench` : `/workbench/task/${r.id}?from=/workbench`}
-            style={{ color: 'var(--zb-text-primary)' }}
+            style={{ color: 'var(--zm-text-primary)' }}
           >
             {v}
           </Link>
@@ -338,7 +365,7 @@ const TaskTab: React.FC = () => {
         title: '类型',
         dataIndex: 'type',
         width: 90,
-        render: (v: string) => <Text style={{ color: 'var(--zb-text-secondary)' }}>{taskTypeLabel(v)}</Text>,
+        render: (v: string) => <Text style={{ color: 'var(--zm-text-secondary)' }}>{taskTypeLabel(v)}</Text>,
       },
       {
         title: '状态',
@@ -353,7 +380,7 @@ const TaskTab: React.FC = () => {
         dataIndex: 'assigned_to',
         width: 160,
         render: (v: string) => (
-          <Text style={{ color: 'var(--zb-text-secondary)' }}>{personOf(v)}</Text>
+          <Text style={{ color: 'var(--zm-text-secondary)' }}>{personOf(v)}</Text>
         ),
       },
       { title: '预估(h)', dataIndex: 'estimate', width: 80 },
@@ -367,7 +394,7 @@ const TaskTab: React.FC = () => {
             <Button
               size="small"
               type="primary"
-              style={{ background: 'var(--zb-brand-gradient)', border: 'none' }}
+              style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}
             >
               报工
             </Button>
@@ -383,6 +410,11 @@ const TaskTab: React.FC = () => {
     taskColumns,
     ({ params, setParams }) => (
       <>
+        <IdSearchInput
+          placeholder="任务ID"
+          value={params.id}
+          onChange={(id) => setParams((p) => ({ ...p, id }))}
+        />
         <IterationSelect
           groupId={effectiveGroupId}
           value={params.execution_id}
@@ -436,7 +468,7 @@ const StoryTab: React.FC = () => {
   const storyColumns = useMemo(
     () => [
       { title: 'ID', dataIndex: 'id', width: 70 },
-      { title: '需求标题', dataIndex: 'title', render: (v: string) => <Text style={{ color: 'var(--zb-text-primary)' }}>{v}</Text> },
+      { title: '需求标题', dataIndex: 'title', render: (v: string) => <Text style={{ color: 'var(--zm-text-primary)' }}>{v}</Text> },
       {
         title: '状态',
         dataIndex: 'status',
@@ -451,7 +483,7 @@ const StoryTab: React.FC = () => {
         title: '指派给',
         dataIndex: 'assigned_to',
         width: 160,
-        render: (v: string) => <Text style={{ color: 'var(--zb-text-secondary)' }}>{personOf(v)}</Text>,
+        render: (v: string) => <Text style={{ color: 'var(--zm-text-secondary)' }}>{personOf(v)}</Text>,
       },
       { title: '预估(h)', dataIndex: 'estimate', width: 80 },
       { title: '最后编辑', dataIndex: 'last_edited_date', width: 130, render: (v: string) => v ? dayjs(v).format('YYYY-MM-DD HH:mm') : '-' },
@@ -463,6 +495,11 @@ const StoryTab: React.FC = () => {
     storyColumns,
     ({ params, setParams }) => (
       <>
+        <IdSearchInput
+          placeholder="需求ID"
+          value={params.id}
+          onChange={(id) => setParams((p) => ({ ...p, id }))}
+        />
         <IterationSelect
           groupId={effectiveGroupId}
           value={params.execution_id}
@@ -508,7 +545,7 @@ const BugTab: React.FC = () => {
   const bugColumns = useMemo(
     () => [
       { title: 'ID', dataIndex: 'id', width: 70 },
-      { title: '缺陷标题', dataIndex: 'title', render: (v: string) => <Text style={{ color: 'var(--zb-text-primary)' }}>{v}</Text> },
+      { title: '缺陷标题', dataIndex: 'title', render: (v: string) => <Text style={{ color: 'var(--zm-text-primary)' }}>{v}</Text> },
       { title: '严重性', dataIndex: 'severity', width: 70, render: (v: number) => <Tag color={v <= 2 ? 'red' : v <= 3 ? 'orange' : 'default'}>P{v}</Tag> },
       {
         title: '状态',
@@ -524,20 +561,20 @@ const BugTab: React.FC = () => {
         title: '指派给',
         dataIndex: 'assigned_to',
         width: 160,
-        render: (v: string) => <Text style={{ color: 'var(--zb-text-secondary)' }}>{personOf(v)}</Text>,
+        render: (v: string) => <Text style={{ color: 'var(--zm-text-secondary)' }}>{personOf(v)}</Text>,
       },
       {
         title: '解决人',
         dataIndex: 'resolved_by',
         width: 160,
-        render: (v: string) => <Text style={{ color: 'var(--zb-text-secondary)' }}>{personOf(v)}</Text>,
+        render: (v: string) => <Text style={{ color: 'var(--zm-text-secondary)' }}>{personOf(v)}</Text>,
       },
       {
         title: '解决方案',
         dataIndex: 'resolution',
         width: 120,
         render: (v: string) => (
-          <Text style={{ color: 'var(--zb-text-secondary)' }}>{bugResolutionLabel(v)}</Text>
+          <Text style={{ color: 'var(--zm-text-secondary)' }}>{bugResolutionLabel(v)}</Text>
         ),
       },
       { title: '最后编辑', dataIndex: 'last_edited_date', width: 130, render: (v: string) => v ? dayjs(v).format('YYYY-MM-DD HH:mm') : '-' },
@@ -549,6 +586,11 @@ const BugTab: React.FC = () => {
     bugColumns,
     ({ params, setParams }) => (
       <>
+        <IdSearchInput
+          placeholder="缺陷ID"
+          value={params.id}
+          onChange={(id) => setParams((p) => ({ ...p, id }))}
+        />
         <IterationSelect
           groupId={effectiveGroupId}
           value={params.execution_id}
@@ -601,11 +643,11 @@ const EffortTab: React.FC = () => {
         title: '登记人',
         dataIndex: 'account',
         width: 160,
-        render: (v: string) => <Text style={{ color: 'var(--zb-text-secondary)' }}>{personOf(v)}</Text>,
+        render: (v: string) => <Text style={{ color: 'var(--zm-text-secondary)' }}>{personOf(v)}</Text>,
       },
       { title: '日期', dataIndex: 'work_date', width: 100, render: (v: string) => v ? dayjs(v).format('YYYY-MM-DD') : '-' },
       { title: '消耗(h)', dataIndex: 'consumed', width: 80 },
-      { title: '工作内容', dataIndex: 'work', render: (v: string) => <Text style={{ color: 'var(--zb-text-secondary)' }}>{v}</Text> },
+      { title: '工作内容', dataIndex: 'work', render: (v: string) => <Text style={{ color: 'var(--zm-text-secondary)' }}>{v}</Text> },
       { title: '关联类型', dataIndex: 'object_type', width: 80 },
       { title: '关联ID', dataIndex: 'object_id', width: 80 },
     ],
@@ -616,6 +658,11 @@ const EffortTab: React.FC = () => {
     effortColumns,
     ({ params, setParams }) => (
       <>
+        <IdSearchInput
+          placeholder="报工ID"
+          value={params.id}
+          onChange={(id) => setParams((p) => ({ ...p, id }))}
+        />
         <IterationSelect
           groupId={effectiveGroupId}
           value={params.execution_id}
@@ -730,7 +777,7 @@ const EffortTab: React.FC = () => {
 
   return (
     <div>
-      <div style={{ marginBottom: 8, color: 'var(--zb-text-muted)', fontSize: 12 }}>
+      <div style={{ marginBottom: 8, color: 'var(--zm-text-muted)', fontSize: 12 }}>
         展示当前小组（成员）在禅道登记的报工明细；可按迭代、登记人、任务筛选；数据量大，时间跨度限制为 6 个月内，请务必选择时间范围。
         登记人与任务、迭代等条件为「且」关系；若选任务后无数据，可尝试清空「按登记人筛选」后再查（任务详情页不按登记人过滤）。
       </div>
@@ -744,7 +791,7 @@ const ExecutionTab: React.FC = () => {
   const executionColumns = useMemo(
     () => [
       { title: 'ID', dataIndex: 'id', width: 70 },
-      { title: '迭代名', dataIndex: 'name', render: (v: string) => <Text style={{ color: 'var(--zb-text-primary)' }}>{v}</Text> },
+      { title: '迭代名', dataIndex: 'name', render: (v: string) => <Text style={{ color: 'var(--zm-text-primary)' }}>{v}</Text> },
       {
         title: '状态',
         dataIndex: 'status',
@@ -765,24 +812,10 @@ const ExecutionTab: React.FC = () => {
     executionColumns,
     ({ params, setParams }) => (
       <>
-        <Input
-          allowClear
+        <IdSearchInput
           placeholder="迭代ID"
-          style={{ width: 140 }}
-          value={params.execution_id?.toString() ?? ''}
-          onChange={(e) => {
-            const raw = e.target.value.trim()
-            if (!raw) {
-              setParams((p) => ({ ...p, execution_id: undefined }))
-              return
-            }
-            const n = Number(raw)
-            if (!Number.isFinite(n) || n <= 0) {
-              setParams((p) => ({ ...p, execution_id: undefined }))
-              return
-            }
-            setParams((p) => ({ ...p, execution_id: Math.trunc(n) }))
-          }}
+          value={params.execution_id}
+          onChange={(id) => setParams((p) => ({ ...p, execution_id: id }))}
         />
         <Input
           allowClear
@@ -830,7 +863,7 @@ const ProjectTab: React.FC = () => {
         render: (v: string, r: { id: number }) => (
           <Button
             type="link"
-            style={{ padding: 0, height: 'auto', color: 'var(--zb-text-primary)' }}
+            style={{ padding: 0, height: 'auto', color: 'var(--zm-text-primary)' }}
             onClick={() => openDetail(r.id)}
           >
             {v || '—'}
@@ -872,6 +905,11 @@ const ProjectTab: React.FC = () => {
     projectColumns,
     ({ params, setParams }) => (
       <>
+        <IdSearchInput
+          placeholder="项目ID"
+          value={params.project_id}
+          onChange={(project_id) => setParams((p) => ({ ...p, project_id }))}
+        />
         <Input
           allowClear
           placeholder="项目名称（模糊）"
@@ -890,8 +928,8 @@ const ProjectTab: React.FC = () => {
 
   return (
     <>
-      <div style={{ marginBottom: 8, color: 'var(--zb-text-muted)', fontSize: 12 }}>
-        展示已同步的禅道项目；支持按名称搜索。选择「按小组」时，仅列出该小组成员在任务或缺陷中出现过的迭代所属项目（与「迭代」Tab 可见范围一致）。右上方结构树筛选对本列表同样生效。
+      <div style={{ marginBottom: 8, color: 'var(--zm-text-muted)', fontSize: 12 }}>
+        展示已同步的禅道项目；支持按 ID 或名称搜索。选择「按小组」时，仅列出该小组成员在任务或缺陷中出现过的迭代所属项目（与「迭代」Tab 可见范围一致）。右上方结构树筛选对本列表同样生效。
       </div>
       {node}
       <Modal
@@ -902,8 +940,8 @@ const ProjectTab: React.FC = () => {
         width={760}
         destroyOnClose
         styles={{
-          content: { background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 },
-          header: { background: 'var(--zb-bg-surface)' },
+          content: { background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 },
+          header: { background: 'var(--zm-bg-surface)' },
         }}
       >
         {detailLoading ? (
@@ -923,7 +961,7 @@ const ProjectTab: React.FC = () => {
                 <div>
                   <Text type="secondary" style={{ fontSize: 12 }}>所属项目集</Text>
                   <div>
-                    <Text style={{ color: 'var(--zb-text-primary)' }}>
+                    <Text style={{ color: 'var(--zm-text-primary)' }}>
                       {detail.program_name || '—'}
                       {p.parent_id ? `（ID ${p.parent_id}）` : ''}
                     </Text>
@@ -934,7 +972,7 @@ const ProjectTab: React.FC = () => {
                 <div>
                   <Text type="secondary" style={{ fontSize: 12 }}>计划开始</Text>
                   <div>
-                    <Text style={{ color: 'var(--zb-text-primary)' }}>
+                    <Text style={{ color: 'var(--zm-text-primary)' }}>
                       {p.begin_date ? dayjs(p.begin_date).format('YYYY-MM-DD') : '—'}
                     </Text>
                   </div>
@@ -942,7 +980,7 @@ const ProjectTab: React.FC = () => {
                 <div>
                   <Text type="secondary" style={{ fontSize: 12 }}>计划结束</Text>
                   <div>
-                    <Text style={{ color: 'var(--zb-text-primary)' }}>
+                    <Text style={{ color: 'var(--zm-text-primary)' }}>
                       {p.end_date ? dayjs(p.end_date).format('YYYY-MM-DD') : '—'}
                     </Text>
                   </div>
@@ -952,12 +990,12 @@ const ProjectTab: React.FC = () => {
                 <div>
                   <Text type="secondary" style={{ fontSize: 12 }}>路径</Text>
                   <div>
-                    <Text style={{ color: 'var(--zb-text-secondary)', wordBreak: 'break-all' }}>{p.path}</Text>
+                    <Text style={{ color: 'var(--zm-text-secondary)', wordBreak: 'break-all' }}>{p.path}</Text>
                   </div>
                 </div>
               ) : null}
               <div>
-                <Text style={{ color: 'var(--zb-text-primary)', fontWeight: 600, marginBottom: 8, display: 'block' }}>
+                <Text style={{ color: 'var(--zm-text-primary)', fontWeight: 600, marginBottom: 8, display: 'block' }}>
                   下属迭代（最多 100 条）
                 </Text>
                 <Table
@@ -968,7 +1006,7 @@ const ProjectTab: React.FC = () => {
                   scroll={{ x: 560 }}
                   columns={[
                     { title: 'ID', dataIndex: 'id', width: 72 },
-                    { title: '迭代名', dataIndex: 'name', render: (v: string) => <Text style={{ color: 'var(--zb-text-primary)' }}>{v || '—'}</Text> },
+                    { title: '迭代名', dataIndex: 'name', render: (v: string) => <Text style={{ color: 'var(--zm-text-primary)' }}>{v || '—'}</Text> },
                     {
                       title: '状态',
                       dataIndex: 'status',
@@ -1039,7 +1077,7 @@ const WorkbenchPage: React.FC = () => {
     <WorkbenchGroupContext.Provider value={ctxValue}>
       <div>
         <div style={{ marginBottom: 20 }}>
-          <Text style={{ color: 'var(--zb-text-primary)', fontSize: 18, fontWeight: 600 }}>数据明细</Text>
+          <Text style={{ color: 'var(--zm-text-primary)', fontSize: 18, fontWeight: 600 }}>数据明细</Text>
           <div style={{ marginTop: 12 }}>
             <div
               style={{
@@ -1049,11 +1087,11 @@ const WorkbenchPage: React.FC = () => {
                 flexWrap: 'wrap',
                 padding: '10px 12px',
                 borderRadius: 12,
-                border: '1px solid var(--zb-border-subtle)',
+                border: '1px solid var(--zm-border-subtle)',
                 background: 'rgba(255,255,255,0.03)',
               }}
             >
-              <Text style={{ color: 'var(--zb-text-muted)', fontSize: 12, fontWeight: 600 }}>
+              <Text style={{ color: 'var(--zm-text-muted)', fontSize: 12, fontWeight: 600 }}>
                 统计范围
               </Text>
               <Segmented
@@ -1074,8 +1112,8 @@ const WorkbenchPage: React.FC = () => {
                 ]}
                 style={{
                   minWidth: 240,
-                  background: 'var(--zb-bg-surface)',
-                  border: '1px solid var(--zb-border-subtle)',
+                  background: 'var(--zm-bg-surface)',
+                  border: '1px solid var(--zm-border-subtle)',
                   borderRadius: 12,
                 }}
               />
@@ -1105,8 +1143,8 @@ const WorkbenchPage: React.FC = () => {
         </div>
 
         <div style={{
-          background: 'var(--zb-bg-surface)',
-          border: '1px solid var(--zb-border-subtle)',
+          background: 'var(--zm-bg-surface)',
+          border: '1px solid var(--zm-border-subtle)',
           borderRadius: 12,
           padding: '16px 20px',
         }}>

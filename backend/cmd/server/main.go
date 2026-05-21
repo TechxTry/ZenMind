@@ -4,11 +4,11 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"zenboard/internal/config"
-	"zenboard/internal/db"
-	"zenboard/internal/handlers"
-	"zenboard/internal/redisclient"
-	"zenboard/internal/scheduler"
+	"zenmind/internal/config"
+	"zenmind/internal/db"
+	"zenmind/internal/handlers"
+	"zenmind/internal/redisclient"
+	"zenmind/internal/scheduler"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -61,7 +61,7 @@ func main() {
 	// 避免直接访问后端端口时只看到 404：浏览器应打开前端 Nginx（WEB_PORT，默认 80），/api 由 Nginx 反代到本服务
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"service": "zenboard-api",
+			"service": "zenmind-api",
 			"hint":    "浏览器请访问前端端口（Docker 中 WEB_PORT，默认 80，例如 http://localhost），勿直接访问本后端端口；REST 接口前缀为 /api。",
 		})
 	})
@@ -163,7 +163,7 @@ func main() {
 		api.POST("/zentao/efforts", handlers.CreateZentaoEffort)
 	}
 
-	log.Printf("[main] ZenBoard backend listening on :%s", config.Global.Port)
+	log.Printf("[main] ZenMind backend listening on :%s", config.Global.Port)
 	if err := r.Run(":" + config.Global.Port); err != nil {
 		log.Fatalf("[main] server failed: %v", err)
 	}

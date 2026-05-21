@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"zenboard/migrations"
+	"zenmind/migrations"
 )
 
 // RunPendingMigrations 在已连接 PG 的前提下，执行尚未记录在 schema_migrations 中的 .sql 文件（按文件名排序）。

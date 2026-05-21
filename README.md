@@ -1,4 +1,4 @@
-# ZenBoard
+# ZenMind
 
 从 **禅道（Zentao）MySQL** 同步数据到本地 **PostgreSQL**，提供 Web 控制台：数据源配置、系统用户与项目组维护、个人工作台、分析看板，以及 **可配置周期间隔** 的定时同步与手动同步。
 
@@ -21,13 +21,13 @@
 
 ```bash
 git clone <本仓库地址>
-cd zt_board
+cd ZenMind
 cp .env.example .env
 ```
 
 编辑 `.env`，至少修改 **`JWT_SECRET`**、**`ADMIN_PASS`**。禅道 MySQL 可在启动后于 Web「系统配置」中填写。
 
-**默认使用 [Docker Hub](https://hub.docker.com/u/techxtry) 上的预构建镜像**（命名空间默认 `techxtry`，标签默认 `latest`，可用 **`DOCKERHUB_NAMESPACE`**、**`ZENBOARD_IMAGE_TAG`** 覆盖）：
+**默认使用 [Docker Hub](https://hub.docker.com/u/techxtry) 上的预构建镜像**（命名空间默认 `techxtry`，镜像 `zenmind-backend` / `zenmind-frontend`，标签默认 `latest`，可用 **`DOCKERHUB_NAMESPACE`**、**`ZENMIND_IMAGE_TAG`** 覆盖）：
 
 ```bash
 docker compose pull
@@ -47,6 +47,8 @@ PostgreSQL / Redis / 后端默认不映射到宿主机端口，仅前端对外�
 ### 更新
 
 已 `git clone` 的仓库：`git pull` 后若需新版镜像，执行 `docker compose pull && docker compose up -d`；若使用本地构建，则 `docker compose ... up -d --build`（命令同上，含 `docker-compose.build.yml`）。
+
+自 **ZenMind** 更名后，Docker 镜像名为 `zenmind-backend` / `zenmind-frontend`，数据库默认用户/库名为 `zenmind`。若你曾用旧名 `zenboard-*` 镜像或数据卷，需重新 `pull` 新镜像；已有 Postgres 卷可继续用（连接串与 `.env` 中 `POSTGRES_*` 需与创建卷时一致），或删卷后按 `.env.example` 重建。
 
 后端启动时会自动执行仓库内嵌的待执行数据库迁移脚本；因此升级到新版本时，**只要更新后端并重启容器 / 进程即可自动补齐 schema 变更**，无需手动逐个执行 `backend/migrations/*.sql`。
 

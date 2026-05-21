@@ -135,9 +135,9 @@ const CalendarAccountsPage: React.FC = () => {
     <div>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <Text style={{ color: 'var(--zb-text-primary)', fontSize: 18, fontWeight: 600 }}>日历账户</Text>
+          <Text style={{ color: 'var(--zm-text-primary)', fontSize: 18, fontWeight: 600 }}>日历账户</Text>
           <div style={{ marginTop: 6 }}>
-            <Text style={{ color: 'var(--zb-text-muted)', fontSize: 12 }}>
+            <Text style={{ color: 'var(--zm-text-muted)', fontSize: 12 }}>
               在这里统一管理日历账户与 ICS 订阅；敏感信息会加密保存，仅用于后续拉取日程。
             </Text>
           </div>
@@ -147,7 +147,7 @@ const CalendarAccountsPage: React.FC = () => {
       <div style={{ height: 12 }} />
 
       <Card
-        title={<Text style={{ color: 'var(--zb-text-primary)' }}>账户列表</Text>}
+        title={<Text style={{ color: 'var(--zm-text-primary)' }}>账户列表</Text>}
         extra={(
           <Space>
             <Button onClick={() => void refreshAccounts()} loading={accountsLoading}>
@@ -158,8 +158,8 @@ const CalendarAccountsPage: React.FC = () => {
             </Button>
           </Space>
         )}
-        styles={{ header: { borderBottom: '1px solid var(--zb-border-subtle)' } }}
-        style={{ background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 }}
+        styles={{ header: { borderBottom: '1px solid var(--zm-border-subtle)' } }}
+        style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}
       >
         <List
           loading={accountsLoading}
@@ -204,7 +204,7 @@ const CalendarAccountsPage: React.FC = () => {
                   </Space>
                 }
                 description={
-                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', color: 'var(--zb-text-muted)', fontSize: 12 }}>
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', color: 'var(--zm-text-muted)', fontSize: 12 }}>
                     <span>服务器：{it.server || '—'}</span>
                     <span>创建：{it.created_at ? new Date(it.created_at).toLocaleString() : '—'}</span>
                   </div>
@@ -218,7 +218,7 @@ const CalendarAccountsPage: React.FC = () => {
       <div style={{ height: 12 }} />
 
       <Card
-        title={<Text style={{ color: 'var(--zb-text-primary)' }}>日历订阅</Text>}
+        title={<Text style={{ color: 'var(--zm-text-primary)' }}>日历订阅</Text>}
         extra={(
           <Space>
             <Button onClick={() => void refreshFeeds()} loading={feedsLoading}>
@@ -229,8 +229,8 @@ const CalendarAccountsPage: React.FC = () => {
             </Button>
           </Space>
         )}
-        styles={{ header: { borderBottom: '1px solid var(--zb-border-subtle)' } }}
-        style={{ background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 }}
+        styles={{ header: { borderBottom: '1px solid var(--zm-border-subtle)' } }}
+        style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}
       >
         <Alert
           type="info"

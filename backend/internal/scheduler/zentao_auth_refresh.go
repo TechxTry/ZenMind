@@ -4,9 +4,9 @@ import (
 	"context"
 	"log"
 	"time"
-	"zenboard/internal/config"
-	"zenboard/internal/db"
-	"zenboard/internal/zentaoauth"
+	"zenmind/internal/config"
+	"zenmind/internal/db"
+	"zenmind/internal/zentaoauth"
 )
 
 // StartPeriodicZentaoAuthRefresh 定时使用已保存的禅道凭证重建 Redis 会话，

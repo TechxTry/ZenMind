@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import {
-  Typography, Button, Table, Space, DatePicker, Tag, Tooltip, Modal, message,
+  Typography, Button, Table, Space, DatePicker, Tag, Tooltip, Modal, message, Descriptions, Divider,
 } from 'antd'
 import { ArrowLeftOutlined, EyeOutlined, SearchOutlined } from '@ant-design/icons'
 import JsonView from '@uiw/react-json-view'
@@ -19,16 +19,124 @@ const STATUS_COLORS: Record<string, string> = {
   pause: 'default', cancel: 'red',
 }
 
+const panelStyle: React.CSSProperties = {
+  background: 'var(--zm-bg-surface)',
+  border: '1px solid var(--zm-border-subtle)',
+  borderRadius: 12,
+  padding: '16px 20px',
+}
+
+function formatDetailValue(v: unknown): string {
+  if (v == null || v === '') return '-'
+  if (typeof v === 'boolean') return v ? '是' : '否'
+  if (typeof v === 'number') return Number.isFinite(v) ? String(v) : '-'
+  if (typeof v === 'string') {
+    const d = dayjs(v)
+    if (d.isValid() && /^\d{4}-\d{2}-\d{2}/.test(v)) {
+      return d.format(v.includes('T') || v.includes(':') ? 'YYYY-MM-DD HH:mm:ss' : 'YYYY-MM-DD')
+    }
+    return v
+  }
+  return String(v)
+}
+
+function taskRawData(task: Record<string, unknown>): object | null {
+  const raw = task.raw_data
+  if (raw != null && typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as object
+  }
+  return null
+}
+
+const TaskFullDetailPanel: React.FC<{
+  task: Record<string, unknown>
+  personOf: (account: string | undefined | null) => string
+  onViewJson: () => void
+}> = ({ task, personOf, onViewJson }) => {
+  const raw = taskRawData(task)
+  return (
+    <div style={{ ...panelStyle, marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+        <Text style={{ color: 'var(--zm-text-primary)', fontWeight: 600 }}>全部明细数据</Text>
+        <Button size="small" icon={<EyeOutlined />} onClick={onViewJson}>
+          弹窗查看 JSON
+        </Button>
+      </div>
+      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
+        以下为本地库同步字段；底部为禅道源表 raw_data（ETL 全量快照）
+      </Text>
+      <Descriptions
+        bordered
+        size="small"
+        column={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2, xxl: 2 }}
+        styles={{ label: { width: 120, color: 'var(--zm-text-muted)' } }}
+      >
+        <Descriptions.Item label="任务 ID">{formatDetailValue(task.id)}</Descriptions.Item>
+        <Descriptions.Item label="任务名称">{formatDetailValue(task.name)}</Descriptions.Item>
+        <Descriptions.Item label="类型">
+          {taskTypeLabel(String(task.type ?? ''))}
+          {task.type ? <Text type="secondary"> ({String(task.type)})</Text> : null}
+        </Descriptions.Item>
+        <Descriptions.Item label="状态">
+          <Tag color={STATUS_COLORS[String(task.status)] ?? 'default'} style={{ margin: 0 }}>
+            {taskStatusLabel(String(task.status ?? ''))}
+          </Tag>
+          {task.status ? <Text type="secondary"> ({String(task.status)})</Text> : null}
+        </Descriptions.Item>
+        <Descriptions.Item label="指派给">{personOf(String(task.assigned_to ?? ''))}</Descriptions.Item>
+        <Descriptions.Item label="完成者">{personOf(String(task.finished_by ?? ''))}</Descriptions.Item>
+        <Descriptions.Item label="预估(h)">{formatDetailValue(task.estimate)}</Descriptions.Item>
+        <Descriptions.Item label="消耗(h)">{formatDetailValue(task.consumed)}</Descriptions.Item>
+        <Descriptions.Item label="执行 ID">{formatDetailValue(task.execution_id)}</Descriptions.Item>
+        <Descriptions.Item label="需求 ID">{formatDetailValue(task.story_id)}</Descriptions.Item>
+        <Descriptions.Item label="创建时间">{formatDetailValue(task.opened_date)}</Descriptions.Item>
+        <Descriptions.Item label="开始时间">{formatDetailValue(task.started_date)}</Descriptions.Item>
+        <Descriptions.Item label="指派时间">{formatDetailValue(task.assigned_date)}</Descriptions.Item>
+        <Descriptions.Item label="截止时间">{formatDetailValue(task.deadline_date)}</Descriptions.Item>
+        <Descriptions.Item label="完成时间">{formatDetailValue(task.finished_date)}</Descriptions.Item>
+        <Descriptions.Item label="关闭时间">{formatDetailValue(task.closed_date)}</Descriptions.Item>
+        <Descriptions.Item label="最后编辑">{formatDetailValue(task.last_edited_date)}</Descriptions.Item>
+        <Descriptions.Item label="已删除">{formatDetailValue(task.deleted)}</Descriptions.Item>
+        <Descriptions.Item label="同步时间">{formatDetailValue(task.synced_at)}</Descriptions.Item>
+      </Descriptions>
+      <Divider style={{ margin: '16px 0 12px' }} />
+      <Text style={{ color: 'var(--zm-text-primary)', fontWeight: 600, display: 'block', marginBottom: 8 }}>
+        禅道原始数据 (raw_data)
+      </Text>
+      {raw ? (
+        <div
+          style={{
+            maxHeight: 480,
+            overflow: 'auto',
+            padding: 12,
+            borderRadius: 8,
+            border: '1px solid var(--zm-border-subtle)',
+            background: 'rgba(0,0,0,0.15)',
+          }}
+        >
+          <JsonView
+            value={raw}
+            collapsed={2}
+            style={{ background: 'transparent', fontSize: 13, fontFamily: 'monospace' }}
+          />
+        </div>
+      ) : (
+        <Text type="secondary" style={{ fontSize: 12 }}>暂无 raw_data</Text>
+      )}
+    </div>
+  )
+}
+
 const RawDataModal: React.FC<{ data: object | null; onClose: () => void }> = ({ data, onClose }) => (
   <Modal
     open={!!data}
-    title={<Text style={{ color: 'var(--zb-text-primary)' }}>原始数据 (raw_data)</Text>}
+    title={<Text style={{ color: 'var(--zm-text-primary)' }}>原始数据 (raw_data)</Text>}
     onCancel={onClose}
     footer={null}
     width={700}
     styles={{
-      content: { background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 },
-      header: { background: 'var(--zb-bg-surface)' },
+      content: { background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 },
+      header: { background: 'var(--zm-bg-surface)' },
     }}
   >
     {data && (
@@ -145,11 +253,11 @@ const TaskDetailPage: React.FC = () => {
       title: '登记人',
       dataIndex: 'account',
       width: 160,
-      render: (v: string) => <Text style={{ color: 'var(--zb-text-secondary)' }}>{personOf(v)}</Text>,
+      render: (v: string) => <Text style={{ color: 'var(--zm-text-secondary)' }}>{personOf(v)}</Text>,
     },
     { title: '日期', dataIndex: 'work_date', width: 100, render: (v: string) => (v ? dayjs(v).format('YYYY-MM-DD') : '-') },
     { title: '消耗(h)', dataIndex: 'consumed', width: 80 },
-    { title: '工作内容', dataIndex: 'work', render: (v: string) => <Text style={{ color: 'var(--zb-text-secondary)' }}>{v}</Text> },
+    { title: '工作内容', dataIndex: 'work', render: (v: string) => <Text style={{ color: 'var(--zm-text-secondary)' }}>{v}</Text> },
     {
       title: '',
       key: 'actions',
@@ -158,7 +266,7 @@ const TaskDetailPage: React.FC = () => {
         <Tooltip title="查看原始数据">
           <Button
             size="small" type="text" icon={<EyeOutlined />}
-            style={{ color: 'var(--zb-text-muted)' }}
+            style={{ color: 'var(--zm-text-muted)' }}
             onClick={() => setRawData(row.raw_data ?? row)}
           />
         </Tooltip>
@@ -181,14 +289,14 @@ const TaskDetailPage: React.FC = () => {
     <div>
       <Space style={{ marginBottom: 16 }}>
         <Link to={backTo}>
-          <Button type="text" icon={<ArrowLeftOutlined />} style={{ color: 'var(--zb-text-secondary)' }}>
+          <Button type="text" icon={<ArrowLeftOutlined />} style={{ color: 'var(--zm-text-secondary)' }}>
             {backLabel}
           </Button>
         </Link>
       </Space>
 
       <div style={{ marginBottom: 20 }}>
-        <Text style={{ color: 'var(--zb-text-primary)', fontSize: 18, fontWeight: 600 }}>任务详情</Text>
+        <Text style={{ color: 'var(--zm-text-primary)', fontSize: 18, fontWeight: 600 }}>任务详情</Text>
         <Tag color="purple" style={{ marginLeft: 12 }}>#{taskId}</Tag>
         <Space style={{ marginLeft: 12 }} wrap>
           {effectiveGroupId
@@ -196,27 +304,21 @@ const TaskDetailPage: React.FC = () => {
             : <Tag>未指定小组</Tag>}
         </Space>
         <Link to={`/my-workbench?task_id=${taskId}`} style={{ marginLeft: 12 }}>
-          <Button type="primary" size="small" style={{ background: 'var(--zb-brand-gradient)', border: 'none' }}>
+          <Button type="primary" size="small" style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}>
             报工
           </Button>
         </Link>
       </div>
 
       {taskLoading ? (
-        <Text style={{ color: 'var(--zb-text-muted)' }}>加载中…</Text>
+        <Text style={{ color: 'var(--zm-text-muted)' }}>加载中…</Text>
       ) : !task ? (
         <Text type="danger">任务不存在或无权查看</Text>
       ) : (
         <>
-          <div style={{
-            background: 'var(--zb-bg-surface)',
-            border: '1px solid var(--zb-border-subtle)',
-            borderRadius: 12,
-            padding: '16px 20px',
-            marginBottom: 20,
-          }}>
+          <div style={{ ...panelStyle, marginBottom: 20 }}>
             <Space direction="vertical" size={8} style={{ width: '100%' }}>
-              <Text style={{ color: 'var(--zb-text-primary)', fontSize: 16 }}>{String(task.name ?? '')}</Text>
+              <Text style={{ color: 'var(--zm-text-primary)', fontSize: 16 }}>{String(task.name ?? '')}</Text>
               <Space wrap>
                 <Tag color={STATUS_COLORS[String(task.status)] ?? 'default'}>
                   {taskStatusLabel(String(task.status ?? ''))}
@@ -229,14 +331,11 @@ const TaskDetailPage: React.FC = () => {
             </Space>
           </div>
 
-          <div style={{
-            background: 'var(--zb-bg-surface)',
-            border: '1px solid var(--zb-border-subtle)',
-            borderRadius: 12,
-            padding: '16px 20px',
-          }}>
-            <Text style={{ color: 'var(--zb-text-primary)', fontWeight: 600, display: 'block', marginBottom: 12 }}>报工明细</Text>
-            <div style={{ marginBottom: 8, color: 'var(--zb-text-muted)', fontSize: 12 }}>
+          <TaskFullDetailPanel task={task} personOf={personOf} onViewJson={() => setRawData(taskRawData(task) ?? task)} />
+
+          <div style={panelStyle}>
+            <Text style={{ color: 'var(--zm-text-primary)', fontWeight: 600, display: 'block', marginBottom: 12 }}>报工明细</Text>
+            <div style={{ marginBottom: 8, color: 'var(--zm-text-muted)', fontSize: 12 }}>
               仅展示关联本任务的报工记录；时间跨度最多 6 个月
             </div>
             <Space wrap style={{ marginBottom: 16 }}>
@@ -258,7 +357,7 @@ const TaskDetailPage: React.FC = () => {
                 type="primary"
                 icon={<SearchOutlined />}
                 onClick={handleSearch}
-                style={{ background: 'var(--zb-brand-gradient)', border: 'none' }}
+                style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}
               >
                 查询
               </Button>

@@ -52,7 +52,7 @@ const LoginPage: React.FC = () => {
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             marginBottom: 16, fontSize: 24,
           }}>🧘</div>
-          <Title level={3} style={{ color: '#fff', margin: 0 }}>ZenBoard</Title>
+          <Title level={3} style={{ color: '#fff', margin: 0 }}>ZenMind</Title>
           <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
             禅道数据旁路洞察平台
           </Text>

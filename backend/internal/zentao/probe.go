@@ -213,7 +213,7 @@ func doProbeWithMethod(ctx context.Context, client *http.Client, label, method, 
 		return r
 	}
 	req.Header.Set("Accept", "application/json,text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	req.Header.Set("User-Agent", "Mozilla/5.0 ZenBoard-Probe")
+	req.Header.Set("User-Agent", "Mozilla/5.0 ZenMind-Probe")
 
 	resp, err := client.Do(req)
 	if err != nil {

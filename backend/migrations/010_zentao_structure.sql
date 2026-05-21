@@ -1,5 +1,5 @@
 -- ============================================================
--- ZenBoard — Zentao structure (Program/Project/ProductLine/Product)
+-- ZenMind — Zentao structure (Program/Project/ProductLine/Product)
 -- PostgreSQL 15+
 -- ============================================================
 

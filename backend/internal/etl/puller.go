@@ -10,10 +10,10 @@ import (
 	"log"
 	"strings"
 	"time"
-	"zenboard/internal/config"
-	"zenboard/internal/db"
-	"zenboard/internal/models"
-	"zenboard/internal/source"
+	"zenmind/internal/config"
+	"zenmind/internal/db"
+	"zenmind/internal/models"
+	"zenmind/internal/source"
 )
 
 // RunAll runs all enabled ETL pipelines sequentially.

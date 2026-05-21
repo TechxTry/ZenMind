@@ -3,7 +3,7 @@ package redisclient
 import (
 	"context"
 	"time"
-	"zenboard/internal/config"
+	"zenmind/internal/config"
 
 	"github.com/redis/go-redis/v9"
 )

@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"zenboard/internal/config"
-	"zenboard/internal/db"
-	"zenboard/internal/redisclient"
-	"zenboard/internal/zentao"
+	"zenmind/internal/config"
+	"zenmind/internal/db"
+	"zenmind/internal/redisclient"
+	"zenmind/internal/zentao"
 )
 
 const SessionKeyPrefix = "zentao:sess:"

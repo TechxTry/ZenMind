@@ -60,7 +60,7 @@ func FetchICS(ctx context.Context, rawURL string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "ZenBoard/1.0 (+https://github.com) calendar-fetch")
+	req.Header.Set("User-Agent", "ZenMind/1.0 (+https://github.com/TechxTry/ZenMind) calendar-fetch")
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

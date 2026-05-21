@@ -45,8 +45,8 @@ export default function AuditLogsPage() {
   return (
     <div style={{ maxWidth: 1200 }}>
       <Card
-        title={<Text style={{ color: 'var(--zb-text-primary)' }}>审计日志</Text>}
-        style={{ background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 }}
+        title={<Text style={{ color: 'var(--zm-text-primary)' }}>审计日志</Text>}
+        style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}
         extra={
           <Space wrap>
             <RangePicker value={range} onChange={(v) => v && v[0] && v[1] && setRange([v[0], v[1]])} />
@@ -66,7 +66,7 @@ export default function AuditLogsPage() {
               onChange={(e) => setActor(e.target.value)}
               onPressEnter={() => void fetch(1)}
             />
-            <a onClick={() => void fetch(1)} style={{ color: 'var(--zb-primary-text)' }}>
+            <a onClick={() => void fetch(1)} style={{ color: 'var(--zm-primary-text)' }}>
               查询
             </a>
           </Space>

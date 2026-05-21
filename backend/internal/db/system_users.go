@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"zenboard/internal/config"
-	"zenboard/internal/models"
+	"zenmind/internal/config"
+	"zenmind/internal/models"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"

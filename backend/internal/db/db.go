@@ -8,8 +8,8 @@ import (
 	"log"
 	"sync"
 	"time"
-	"zenboard/internal/config"
-	"zenboard/internal/models"
+	"zenmind/internal/config"
+	"zenmind/internal/models"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"

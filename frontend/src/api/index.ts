@@ -264,6 +264,8 @@ export type WorkbenchParams = {
   group_id?: number
   /** 1：仅返回账号管理中绑定的禅道账号相关数据（我的工作台） */
   my_binding?: 0 | 1
+  /** 记录主键 ID（任务/需求/缺陷/报工等 Tab 精确筛选） */
+  id?: number
   /** 迭代名（仅用于「迭代」Tab 模糊筛选） */
   name?: string
   status?: string
@@ -272,6 +274,8 @@ export type WorkbenchParams = {
   account?: string
   /** 禅道迭代 (zt_project) ID，用于筛选任务/需求/缺陷/日志 */
   execution_id?: number
+  /** 项目 ID（结构树筛选或「项目」Tab 按 ID 搜索） */
+  project_id?: number
   /** 仅报工：筛选关联到指定任务 ID 的报工（object_type=task） */
   task_id?: number
   date_from?: string

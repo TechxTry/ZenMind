@@ -6,9 +6,9 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: zenboard-backend:local
+    image: zenmind-backend:local
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    image: zenboard-frontend:local
+    image: zenmind-frontend:local

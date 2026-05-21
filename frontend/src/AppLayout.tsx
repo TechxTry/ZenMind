@@ -1,7 +1,9 @@
 import { Layout, Menu, Select, Space, Typography, Avatar, Button, Tooltip } from 'antd'
 import {
   SettingOutlined, BarChartOutlined, LogoutOutlined, UserOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
+  GithubOutlined,
 } from '@ant-design/icons'
+import { APP_VERSION, GITHUB_REPO_URL } from './constants/release'
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAppStore } from './store'
 import { useEffect, useMemo, useState } from 'react'
@@ -143,7 +145,7 @@ const AppLayout: React.FC = () => {
       style={{
         height: '100vh',
         overflow: 'hidden',
-        background: 'var(--zb-bg-canvas)',
+        background: 'var(--zm-bg-canvas)',
       }}
     >
       <Sider
@@ -157,13 +159,13 @@ const AppLayout: React.FC = () => {
           height: '100vh',
           overflowY: 'auto',
           position: 'relative',
-          background: 'var(--zb-bg-surface)',
-          borderRight: '1px solid var(--zb-border-subtle)',
+          background: 'var(--zm-bg-surface)',
+          borderRight: '1px solid var(--zm-border-subtle)',
         }}
       >
         <div style={{
           padding: collapsed ? '24px 12px 16px' : '24px 20px 16px',
-          borderBottom: '1px solid var(--zb-border-subtle)',
+          borderBottom: '1px solid var(--zm-border-subtle)',
           marginBottom: 8,
         }}>
           <Space
@@ -172,11 +174,11 @@ const AppLayout: React.FC = () => {
           >
             <div style={{
               width: 32, height: 32, borderRadius: 8,
-              background: 'var(--zb-brand-gradient)',
+              background: 'var(--zm-brand-gradient)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 16,
             }}>🧘</div>
-            {!collapsed && <Text strong style={{ fontSize: 15, color: 'var(--zb-text-primary)' }}>ZenBoard</Text>}
+            {!collapsed && <Text strong style={{ fontSize: 15, color: 'var(--zm-text-primary)' }}>ZenMind</Text>}
           </Space>
         </div>
 
@@ -195,7 +197,59 @@ const AppLayout: React.FC = () => {
           items={menuItems}
         />
 
-        <div style={{ position: 'absolute', bottom: 16, left: 0, right: 0, padding: '0 16px' }}>
+        <div style={{
+          position: 'absolute',
+          bottom: 16,
+          left: 0,
+          right: 0,
+          padding: collapsed ? '0 12px' : '0 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+        }}
+        >
+          <Tooltip
+            placement="right"
+            title={collapsed ? `GitHub · ${APP_VERSION}` : null}
+          >
+            <a
+              href={GITHUB_REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                gap: 8,
+                padding: '8px 12px',
+                borderRadius: 8,
+                color: 'var(--zm-text-muted)',
+                fontSize: 12,
+                textDecoration: 'none',
+                transition: 'all .2s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--zm-bg-hover)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+            >
+              <GithubOutlined style={{ fontSize: 14 }} />
+              {!collapsed && (
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'block', lineHeight: 1.4 }}>GitHub</span>
+                  <span style={{
+                    display: 'block',
+                    fontSize: 11,
+                    color: 'var(--zm-text-muted)',
+                    opacity: 0.85,
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                  >
+                    {APP_VERSION}
+                  </span>
+                </span>
+              )}
+            </a>
+          </Tooltip>
+
           <Tooltip placement="right" title={collapsed ? '退出登录' : null}>
             <div
               onClick={logout}
@@ -207,10 +261,10 @@ const AppLayout: React.FC = () => {
                 padding: '10px 12px',
                 borderRadius: 8,
                 cursor: 'pointer',
-                color: 'var(--zb-text-muted)',
+                color: 'var(--zm-text-muted)',
                 transition: 'all .2s',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--zb-bg-hover)')}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--zm-bg-hover)')}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
               <LogoutOutlined /> {!collapsed && '退出登录'}
@@ -234,7 +288,7 @@ const AppLayout: React.FC = () => {
             flexShrink: 0,
             background: 'var(--app-header-bg)',
             backdropFilter: 'blur(12px)',
-            borderBottom: '1px solid var(--zb-border-subtle)',
+            borderBottom: '1px solid var(--zm-border-subtle)',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             padding: '0 24px', height: 56,
           }}
@@ -259,7 +313,7 @@ const AppLayout: React.FC = () => {
               ]}
             />
             <Avatar
-              style={{ background: 'var(--zb-brand-gradient)', cursor: 'default' }}
+              style={{ background: 'var(--zm-brand-gradient)', cursor: 'default' }}
               size={32}
             >
               {(me?.user?.display_name || me?.user?.username || 'U').slice(0, 1).toUpperCase()}

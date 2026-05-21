@@ -4,7 +4,7 @@ import { CopyOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { AdminBatchCreateSystemUserItem } from '../../api'
 
-const BATCH_CREATE_RESULT_SESSION_KEY = 'zenboard_admin_system_users_batch_create_result'
+const BATCH_CREATE_RESULT_SESSION_KEY = 'zenmind_admin_system_users_batch_create_result'
 
 const { Text } = Typography
 
@@ -85,8 +85,8 @@ export default function SystemUsersCreateSuccessPage() {
   return (
     <div style={{ maxWidth: 1200 }}>
       <Card
-        title={<Text style={{ color: 'var(--zb-text-primary)' }}>批量创建成功</Text>}
-        style={{ background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 }}
+        title={<Text style={{ color: 'var(--zm-text-primary)' }}>批量创建成功</Text>}
+        style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}
         extra={
           <Space>
             <Button
@@ -109,7 +109,7 @@ export default function SystemUsersCreateSuccessPage() {
           </Space>
         }
       >
-        <div style={{ marginBottom: 12, color: 'var(--zb-text-muted)', fontSize: 12 }}>
+        <div style={{ marginBottom: 12, color: 'var(--zm-text-muted)', fontSize: 12 }}>
           密码仅展示在此页面。请尽快复制并妥善保存。
         </div>
         <Table rowKey="username" size="small" columns={columns as any} dataSource={rows} pagination={false} />

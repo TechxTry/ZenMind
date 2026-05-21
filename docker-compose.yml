@@ -12,26 +12,26 @@
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: zenboard_pg
+    container_name: zenmind_pg
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-zenboard}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zenboard123}
-      POSTGRES_DB: ${POSTGRES_DB:-zenboard}
+      POSTGRES_USER: ${POSTGRES_USER:-zenmind}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zenmind123}
+      POSTGRES_DB: ${POSTGRES_DB:-zenmind}
     expose:
       - "5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./backend/migrations:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zenboard} -d ${POSTGRES_DB:-zenboard}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zenmind} -d ${POSTGRES_DB:-zenmind}"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   redis:
     image: redis:7-alpine
-    container_name: zenboard_redis
+    container_name: zenmind_redis
     restart: unless-stopped
     expose:
       - "6379"
@@ -44,8 +44,8 @@ services:
       retries: 10
 
   backend:
-    image: ${DOCKERHUB_NAMESPACE:-techxtry}/zenboard-backend:${ZENBOARD_IMAGE_TAG:-latest}
-    container_name: zenboard_backend
+    image: ${DOCKERHUB_NAMESPACE:-techxtry}/zenmind-backend:${ZENMIND_IMAGE_TAG:-latest}
+    container_name: zenmind_backend
     restart: unless-stopped
     depends_on:
       postgres:
@@ -55,8 +55,8 @@ services:
     environment:
       PORT: "8080"
       PG_DSN: >-
-        host=postgres user=${POSTGRES_USER:-zenboard} password=${POSTGRES_PASSWORD:-zenboard123}
-        dbname=${POSTGRES_DB:-zenboard} port=5432 sslmode=disable TimeZone=Asia/Shanghai
+        host=postgres user=${POSTGRES_USER:-zenmind} password=${POSTGRES_PASSWORD:-zenmind123}
+        dbname=${POSTGRES_DB:-zenmind} port=5432 sslmode=disable TimeZone=Asia/Shanghai
       REDIS_ADDR: redis:6379
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASS: ${ADMIN_PASS:-change_me_in_production}
@@ -71,8 +71,8 @@ services:
       - "8080"
 
   frontend:
-    image: ${DOCKERHUB_NAMESPACE:-techxtry}/zenboard-frontend:${ZENBOARD_IMAGE_TAG:-latest}
-    container_name: zenboard_frontend
+    image: ${DOCKERHUB_NAMESPACE:-techxtry}/zenmind-frontend:${ZENMIND_IMAGE_TAG:-latest}
+    container_name: zenmind_frontend
     restart: unless-stopped
     depends_on:
       - backend

@@ -3,9 +3,9 @@ package handlers
 import (
 	"net/http"
 	"time"
-	"zenboard/internal/config"
-	"zenboard/internal/db"
-	"zenboard/internal/models"
+	"zenmind/internal/config"
+	"zenmind/internal/db"
+	"zenmind/internal/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"

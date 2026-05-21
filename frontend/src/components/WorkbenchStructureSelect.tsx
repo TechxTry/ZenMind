@@ -99,7 +99,7 @@ export const WorkbenchStructureSelect: React.FC<{
         treeData={treeData}
         filterTreeNode={(input, node) => (String((node as any).title ?? '')).toLowerCase().includes(input.toLowerCase())}
       />
-      <Text style={{ color: 'var(--zb-text-muted)', fontSize: 12 }}>{hint}</Text>
+      <Text style={{ color: 'var(--zm-text-muted)', fontSize: 12 }}>{hint}</Text>
     </div>
   )
 }

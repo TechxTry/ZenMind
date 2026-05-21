@@ -1,0 +1,27 @@
+# 本地密钥（勿进入构建上下文）
+.env
+.env.*
+
+# Go 本地构建产物
+/bin/
+*.exe
+*.test
+*.prof
+
+# 测试与临时
+/tmp/
+
+# vendor 由镜像内 go mod download 拉取，不用本机 vendor
+vendor/
+go.work
+go.work.sum
+
+# 文档与 Git
+*.md
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+.DS_Store

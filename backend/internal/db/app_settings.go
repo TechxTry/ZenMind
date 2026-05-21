@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"zenboard/internal/config"
+	"zenmind/internal/config"
 
 	"gorm.io/gorm"
 )

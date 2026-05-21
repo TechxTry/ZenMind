@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"net/http"
-	"zenboard/internal/db"
+	"zenmind/internal/db"
 
 	"github.com/gin-gonic/gin"
 )

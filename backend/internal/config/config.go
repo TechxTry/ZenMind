@@ -50,10 +50,10 @@ func Load() {
 
 	Global = Config{
 		Port:      getEnv("PORT", "8080"),
-		PGDSN:     getEnv("PG_DSN", "host=localhost user=zenboard password=zenboard123 dbname=zenboard port=5432 sslmode=disable TimeZone=Asia/Shanghai"),
+		PGDSN:     getEnv("PG_DSN", "host=localhost user=zenmind password=zenmind123 dbname=zenmind port=5432 sslmode=disable TimeZone=Asia/Shanghai"),
 		AdminUser: getEnv("ADMIN_USER", "admin"),
 		AdminPass: getEnv("ADMIN_PASS", "admin123"),
-		JWTSecret: getEnv("JWT_SECRET", "zenboard-secret-change-me"),
+		JWTSecret: getEnv("JWT_SECRET", "zenmind-secret-change-me"),
 		RedisAddr: getEnv("REDIS_ADDR", "localhost:6379"),
 
 		ZentaoHost:       getEnv("ZT_HOST", ""),

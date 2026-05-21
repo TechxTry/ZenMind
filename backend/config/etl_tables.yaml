@@ -1,4 +1,4 @@
-# ETL 表映射配置（Zentao MySQL → ZenBoard PostgreSQL）
+# ETL 表映射配置（Zentao MySQL → ZenMind PostgreSQL）
 # ------------------------------------------------------------
 # 目标：
 # - 用“配置”适配不同禅道版本/企业版定制差异（表名、字段、type 值等）

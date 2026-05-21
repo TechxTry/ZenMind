@@ -106,7 +106,7 @@ const PeopleDashboardPage: React.FC = () => {
     }))
     return {
       tooltip: { trigger: 'axis' },
-      legend: { top: 0, textStyle: { color: 'var(--zb-text-secondary)' } },
+      legend: { top: 0, textStyle: { color: 'var(--zm-text-secondary)' } },
       grid: { left: 48, right: 16, top: 32, bottom: 32 },
       xAxis: { type: 'category', data: days, axisLabel: { rotate: 45 } },
       yAxis: { type: 'value' },
@@ -119,7 +119,7 @@ const PeopleDashboardPage: React.FC = () => {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <Text style={{ color: 'var(--zb-text-primary)', fontSize: 18, fontWeight: 600 }}>员工看板</Text>
+        <Text style={{ color: 'var(--zm-text-primary)', fontSize: 18, fontWeight: 600 }}>员工看板</Text>
         <Space style={{ marginLeft: 12 }} wrap>
           <RangePicker
             value={range}
@@ -147,7 +147,7 @@ const PeopleDashboardPage: React.FC = () => {
           <Card
             title="人员概览"
             loading={overviewLoading}
-            style={{ background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 }}
+            style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}
           >
             {topRow ? (
               <Row gutter={12} style={{ marginBottom: 12 }}>
@@ -172,7 +172,7 @@ const PeopleDashboardPage: React.FC = () => {
                   title: '人员',
                   dataIndex: 'account',
                   render: (_: any, r: any) => (
-                    <Text style={{ color: 'var(--zb-text-primary)' }}>
+                    <Text style={{ color: 'var(--zm-text-primary)' }}>
                       {r.realname?.trim() ? `${r.realname}（${r.account}）` : r.account}
                     </Text>
                   ),
@@ -195,7 +195,7 @@ const PeopleDashboardPage: React.FC = () => {
                           params: { assigned_to: r.account, page: 1, page_size: 200 },
                         })
                       }
-                      style={{ color: 'var(--zb-primary-text)' }}
+                      style={{ color: 'var(--zm-primary-text)' }}
                     >
                       下钻
                     </a>
@@ -208,19 +208,19 @@ const PeopleDashboardPage: React.FC = () => {
         </Col>
 
         <Col span={12}>
-          <Card title="团队WIP趋势（近似）" loading={wipLoading} style={{ background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 }}>
+          <Card title="团队WIP趋势（近似）" loading={wipLoading} style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}>
             <ReactECharts option={wipOption} style={{ height: 320 }} />
           </Card>
         </Col>
         <Col span={12}>
-          <Card title="个人吞吐（完成任务数）" loading={tpLoading} style={{ background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 }}>
+          <Card title="个人吞吐（完成任务数）" loading={tpLoading} style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}>
             <ReactECharts option={throughputOption} style={{ height: 320 }} />
           </Card>
         </Col>
 
         <Col span={24}>
-          <Card title="瓶颈候选：在制时间过长的任务" loading={bnLoading} style={{ background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 }}>
-            {bn?.note ? <div style={{ marginBottom: 8, color: 'var(--zb-text-muted)', fontSize: 12 }}>{bn.note}</div> : null}
+          <Card title="瓶颈候选：在制时间过长的任务" loading={bnLoading} style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}>
+            {bn?.note ? <div style={{ marginBottom: 8, color: 'var(--zm-text-muted)', fontSize: 12 }}>{bn.note}</div> : null}
             <Table
               rowKey="id"
               size="small"
@@ -243,8 +243,8 @@ const PeopleDashboardPage: React.FC = () => {
         open={taskDrawer.open}
         width={960}
         onClose={() => setTaskDrawer({ open: false, title: '', params: null })}
-        title={<Text style={{ color: 'var(--zb-text-primary)' }}>{taskDrawer.title}</Text>}
-        styles={{ body: { background: 'var(--zb-bg-canvas)' }, header: { background: 'var(--zb-bg-canvas)' } }}
+        title={<Text style={{ color: 'var(--zm-text-primary)' }}>{taskDrawer.title}</Text>}
+        styles={{ body: { background: 'var(--zm-bg-canvas)' }, header: { background: 'var(--zm-bg-canvas)' } }}
       >
         <Table
           rowKey="id"

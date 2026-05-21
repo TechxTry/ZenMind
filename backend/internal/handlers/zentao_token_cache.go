@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"zenboard/internal/config"
-	"zenboard/internal/db"
-	"zenboard/internal/redisclient"
-	"zenboard/internal/zentao"
+	"zenmind/internal/config"
+	"zenmind/internal/db"
+	"zenmind/internal/redisclient"
+	"zenmind/internal/zentao"
 
 	"github.com/redis/go-redis/v9"
 )

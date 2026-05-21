@@ -4,8 +4,8 @@ import (
 	"context"
 	"log"
 	"time"
-	"zenboard/internal/config"
-	"zenboard/internal/etl"
+	"zenmind/internal/config"
+	"zenmind/internal/etl"
 )
 
 var syncIntervalReset = make(chan struct{}, 1)

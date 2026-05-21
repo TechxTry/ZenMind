@@ -12,12 +12,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"zenboard/internal/config"
-	"zenboard/internal/db"
-	"zenboard/internal/etl"
-	"zenboard/internal/redisclient"
-	"zenboard/internal/source"
-	"zenboard/internal/zentao"
+	"zenmind/internal/config"
+	"zenmind/internal/db"
+	"zenmind/internal/etl"
+	"zenmind/internal/redisclient"
+	"zenmind/internal/source"
+	"zenmind/internal/zentao"
 
 	"github.com/gin-gonic/gin"
 )

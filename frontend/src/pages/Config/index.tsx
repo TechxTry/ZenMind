@@ -117,45 +117,45 @@ const ConfigPage: React.FC = () => {
   }
 
   const cardStyle = {
-    background: 'var(--zb-bg-surface)',
-    border: '1px solid var(--zb-border-subtle)',
+    background: 'var(--zm-bg-surface)',
+    border: '1px solid var(--zm-border-subtle)',
     borderRadius: 12,
   }
 
   return (
     <div style={{ maxWidth: 1000 }}>
-      <Title level={4} style={{ color: 'var(--zb-text-primary)', marginBottom: 24 }}>数据同步</Title>
+      <Title level={4} style={{ color: 'var(--zm-text-primary)', marginBottom: 24 }}>数据同步</Title>
 
       {/* Datasource Config */}
-      <Card title={<Text style={{ color: 'var(--zb-text-primary)' }}>禅道 MySQL 数据源</Text>} style={cardStyle}
-        styles={{ header: { borderBottom: '1px solid var(--zb-border-subtle)' } }}>
+      <Card title={<Text style={{ color: 'var(--zm-text-primary)' }}>禅道 MySQL 数据源</Text>} style={cardStyle}
+        styles={{ header: { borderBottom: '1px solid var(--zm-border-subtle)' } }}>
         <Form form={form} layout="vertical">
           <Row gutter={16}>
             <Col span={14}>
-              <Form.Item name="host" label={<Text style={{ color: 'var(--zb-text-secondary)' }}>Host</Text>}
+              <Form.Item name="host" label={<Text style={{ color: 'var(--zm-text-secondary)' }}>Host</Text>}
                 rules={[{ required: true }]}>
                 <Input placeholder="192.168.1.100" />
               </Form.Item>
             </Col>
             <Col span={10}>
-              <Form.Item name="port" label={<Text style={{ color: 'var(--zb-text-secondary)' }}>Port</Text>}
+              <Form.Item name="port" label={<Text style={{ color: 'var(--zm-text-secondary)' }}>Port</Text>}
                 rules={[{ required: true }]} initialValue="3306">
                 <Input placeholder="3306" />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="user" label={<Text style={{ color: 'var(--zb-text-secondary)' }}>用户名</Text>}
+              <Form.Item name="user" label={<Text style={{ color: 'var(--zm-text-secondary)' }}>用户名</Text>}
                 rules={[{ required: true }]}>
                 <Input placeholder="root" />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="password" label={<Text style={{ color: 'var(--zb-text-secondary)' }}>密码</Text>}>
+              <Form.Item name="password" label={<Text style={{ color: 'var(--zm-text-secondary)' }}>密码</Text>}>
                 <Input.Password placeholder="••••••••" />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="db_name" label={<Text style={{ color: 'var(--zb-text-secondary)' }}>数据库名</Text>}
+              <Form.Item name="db_name" label={<Text style={{ color: 'var(--zm-text-secondary)' }}>数据库名</Text>}
                 rules={[{ required: true }]} initialValue="zentao">
                 <Input placeholder="zentao" />
               </Form.Item>
@@ -172,24 +172,24 @@ const ConfigPage: React.FC = () => {
         </Form>
       </Card>
 
-      <Divider style={{ borderColor: 'var(--zb-border-subtle)' }} />
+      <Divider style={{ borderColor: 'var(--zm-border-subtle)' }} />
 
       {/* Local DB row counts */}
       <Card
-        title={<Text style={{ color: 'var(--zb-text-primary)' }}>本地数据库数据量</Text>}
+        title={<Text style={{ color: 'var(--zm-text-primary)' }}>本地数据库数据量</Text>}
         style={cardStyle}
-        styles={{ header: { borderBottom: '1px solid var(--zb-border-subtle)' } }}
+        styles={{ header: { borderBottom: '1px solid var(--zm-border-subtle)' } }}
         extra={
-          <Text style={{ color: 'var(--zb-text-muted)', fontSize: 12 }}>
+          <Text style={{ color: 'var(--zm-text-muted)', fontSize: 12 }}>
             PostgreSQL 已落库行数（与小组筛选无关）
           </Text>
         }
       >
         <Spin spinning={statusLoading}>
           <div style={{ marginBottom: 16 }}>
-            <Text style={{ color: 'var(--zb-text-muted)', fontSize: 12 }}>合计 </Text>
-            <Text style={{ color: 'var(--zb-primary-text)', fontSize: 18, fontWeight: 600 }}>{localTotal.toLocaleString()}</Text>
-            <Text style={{ color: 'var(--zb-text-muted)', fontSize: 12 }}> 行</Text>
+            <Text style={{ color: 'var(--zm-text-muted)', fontSize: 12 }}>合计 </Text>
+            <Text style={{ color: 'var(--zm-primary-text)', fontSize: 18, fontWeight: 600 }}>{localTotal.toLocaleString()}</Text>
+            <Text style={{ color: 'var(--zm-text-muted)', fontSize: 12 }}> 行</Text>
           </div>
           <Row gutter={[16, 16]}>
             {Object.entries(TABLE_LABELS).map(([key, label]) => {
@@ -199,18 +199,18 @@ const ConfigPage: React.FC = () => {
                 <Col span={8} key={`lc-${key}`}>
                   <div style={{
                     padding: 16, borderRadius: 10,
-                    background: 'var(--zb-bg-surface-muted)',
-                    border: '1px solid var(--zb-border-subtle)',
+                    background: 'var(--zm-bg-surface-muted)',
+                    border: '1px solid var(--zm-border-subtle)',
                   }}>
-                    <Text style={{ color: 'var(--zb-text-secondary)', fontSize: 12, display: 'block', marginBottom: 8 }}>{label}</Text>
+                    <Text style={{ color: 'var(--zm-text-secondary)', fontSize: 12, display: 'block', marginBottom: 8 }}>{label}</Text>
                     {has ? (
                       <Statistic
                         value={n}
                         suffix="行"
-                        valueStyle={{ color: 'var(--zb-primary-text)', fontSize: 20 }}
+                        valueStyle={{ color: 'var(--zm-primary-text)', fontSize: 20 }}
                       />
                     ) : (
-                      <Text style={{ color: 'var(--zb-text-disabled)', fontSize: 12 }}>—</Text>
+                      <Text style={{ color: 'var(--zm-text-disabled)', fontSize: 12 }}>—</Text>
                     )}
                   </div>
                 </Col>
@@ -220,18 +220,18 @@ const ConfigPage: React.FC = () => {
         </Spin>
       </Card>
 
-      <Divider style={{ borderColor: 'var(--zb-border-subtle)' }} />
+      <Divider style={{ borderColor: 'var(--zm-border-subtle)' }} />
 
       {/* Sync Status */}
       <Card
-        title={<Text style={{ color: 'var(--zb-text-primary)' }}>同步状态</Text>}
+        title={<Text style={{ color: 'var(--zm-text-primary)' }}>同步状态</Text>}
         style={cardStyle}
-        styles={{ header: { borderBottom: '1px solid var(--zb-border-subtle)' } }}
+        styles={{ header: { borderBottom: '1px solid var(--zm-border-subtle)' } }}
         extra={
           <Space>
             <Button size="small" onClick={fetchStatus} icon={<SyncOutlined />}>刷新</Button>
             <Button type="primary" size="small" onClick={handleSync} loading={syncing}
-              style={{ background: 'var(--zb-brand-gradient)', border: 'none' }}>
+              style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}>
               立即同步
             </Button>
           </Space>
@@ -241,7 +241,7 @@ const ConfigPage: React.FC = () => {
           <div style={{
             marginBottom: 20, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12,
           }}>
-            <Text style={{ color: 'var(--zb-text-secondary)', fontSize: 13 }}>自动同步周期（分钟）</Text>
+            <Text style={{ color: 'var(--zm-text-secondary)', fontSize: 13 }}>自动同步周期（分钟）</Text>
             <InputNumber
               min={1}
               max={1440}
@@ -252,7 +252,7 @@ const ConfigPage: React.FC = () => {
             <Button size="small" onClick={handleSaveInterval} loading={savingInterval}>
               保存周期
             </Button>
-            <Text style={{ color: 'var(--zb-text-muted)', fontSize: 11 }}>
+            <Text style={{ color: 'var(--zm-text-muted)', fontSize: 11 }}>
               范围 1～1440；保存后立即按新周期间隔重新计时（若此时正在跑 ETL，需等其结束后再进入等待）
             </Text>
           </div>
@@ -264,13 +264,13 @@ const ConfigPage: React.FC = () => {
                 <Col span={8} key={key}>
                   <div style={{
                     padding: 16, borderRadius: 10,
-                    background: 'var(--zb-bg-surface-muted)',
-                    border: '1px solid var(--zb-border-subtle)',
+                    background: 'var(--zm-bg-surface-muted)',
+                    border: '1px solid var(--zm-border-subtle)',
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <Text style={{ color: 'var(--zb-text-secondary)', fontSize: 12 }}>{label}</Text>
+                      <Text style={{ color: 'var(--zm-text-secondary)', fontSize: 12 }}>{label}</Text>
                       <Badge status={isSync ? 'success' : 'default'} text={
-                        <Text style={{ color: 'var(--zb-text-muted)', fontSize: 11 }}>
+                        <Text style={{ color: 'var(--zm-text-muted)', fontSize: 11 }}>
                           {isSync ? '已同步' : '未同步'}
                         </Text>
                       } />
@@ -280,17 +280,17 @@ const ConfigPage: React.FC = () => {
                         <Statistic
                           value={info.last_count}
                           suffix="条"
-                          valueStyle={{ color: 'var(--zb-primary-text)', fontSize: 20 }}
+                          valueStyle={{ color: 'var(--zm-primary-text)', fontSize: 20 }}
                         />
-                        <Text style={{ color: 'var(--zb-text-muted)', fontSize: 11, display: 'block', marginTop: 2 }}>
+                        <Text style={{ color: 'var(--zm-text-muted)', fontSize: 11, display: 'block', marginTop: 2 }}>
                           上轮增量（非库内总量）
                         </Text>
-                        <Text style={{ color: 'var(--zb-text-muted)', fontSize: 11, display: 'block', marginTop: 4 }}>
+                        <Text style={{ color: 'var(--zm-text-muted)', fontSize: 11, display: 'block', marginTop: 4 }}>
                           {dayjs(info.updated_at).format('MM-DD HH:mm')}
                         </Text>
                       </>
                     )}
-                    {!info && <Text style={{ color: 'var(--zb-text-disabled)', fontSize: 12 }}>暂无数据</Text>}
+                    {!info && <Text style={{ color: 'var(--zm-text-disabled)', fontSize: 12 }}>暂无数据</Text>}
                   </div>
                 </Col>
               )

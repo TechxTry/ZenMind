@@ -1,5 +1,5 @@
 -- ============================================================
--- ZenBoard — Phase 2: System Users / Bindings / Audit Logs
+-- ZenMind — Phase 2: System Users / Bindings / Audit Logs
 -- PostgreSQL 15+
 -- ============================================================
 

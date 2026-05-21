@@ -42,4 +42,5 @@ script/
 node_modules/
 frontend/node_modules/
 frontend/dist/
+frontend/.app-version
 *.tsbuildinfo

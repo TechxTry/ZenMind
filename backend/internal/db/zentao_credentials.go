@@ -3,8 +3,8 @@ package db
 import (
 	"errors"
 	"strings"
-	"zenboard/internal/config"
-	"zenboard/internal/crypto"
+	"zenmind/internal/config"
+	"zenmind/internal/crypto"
 
 	"gorm.io/gorm"
 )

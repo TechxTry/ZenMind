@@ -29,7 +29,7 @@ const SCOPE_OPTIONS = [
   { value: 'ALL', label: 'ALL' },
 ]
 
-const BATCH_CREATE_RESULT_SESSION_KEY = 'zenboard_admin_system_users_batch_create_result'
+const BATCH_CREATE_RESULT_SESSION_KEY = 'zenmind_admin_system_users_batch_create_result'
 
 export default function SystemUsersPage() {
   const navigate = useNavigate()
@@ -230,8 +230,8 @@ export default function SystemUsersPage() {
   return (
     <div style={{ maxWidth: 1200 }}>
       <Card
-        title={<Text style={{ color: 'var(--zb-text-primary)' }}>系统用户管理</Text>}
-        style={{ background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 }}
+        title={<Text style={{ color: 'var(--zm-text-primary)' }}>系统用户管理</Text>}
+        style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}
         extra={
           <Space>
             <Input.Search
@@ -242,7 +242,7 @@ export default function SystemUsersPage() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
-            <Button type="primary" onClick={openCreate} style={{ background: 'var(--zb-brand-gradient)', border: 'none' }}>
+            <Button type="primary" onClick={openCreate} style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}>
               新建用户
             </Button>
           </Space>
@@ -363,7 +363,7 @@ export default function SystemUsersPage() {
               label: '禅道人员批量创建',
               children: (
                 <>
-                  <div style={{ marginBottom: 10, color: 'var(--zb-text-muted)', fontSize: 12 }}>
+                  <div style={{ marginBottom: 10, color: 'var(--zm-text-muted)', fontSize: 12 }}>
                     勾选禅道人员后，将为每位用户自动生成随机密码，并在“创建成功页”一次性展示账号与密码。
                   </div>
                   <Transfer
@@ -502,7 +502,7 @@ export default function SystemUsersPage() {
           </Space>
         )}
       >
-        <div style={{ marginBottom: 10, color: 'var(--zb-text-muted)', fontSize: 12 }}>
+        <div style={{ marginBottom: 10, color: 'var(--zm-text-muted)', fontSize: 12 }}>
           绑定用于“SELF 个人口径”筛选与权限裁剪；同一禅道账号禁止绑定多个系统用户。
         </div>
         <Select

@@ -171,15 +171,15 @@ const TeamHealthPage: React.FC = () => {
       xAxis: {
         type: 'category',
         data: dates,
-        axisLabel: { rotate: 45, color: 'var(--zb-text-secondary)' },
-        axisLine: { lineStyle: { color: 'var(--zb-border-subtle)' } },
+        axisLabel: { rotate: 45, color: 'var(--zm-text-secondary)' },
+        axisLine: { lineStyle: { color: 'var(--zm-border-subtle)' } },
         splitLine: { show: false },
       },
       yAxis: {
         type: 'category',
         data: yLabels,
-        axisLabel: { color: 'var(--zb-text-secondary)' },
-        axisLine: { lineStyle: { color: 'var(--zb-border-subtle)' } },
+        axisLabel: { color: 'var(--zm-text-secondary)' },
+        axisLine: { lineStyle: { color: 'var(--zm-border-subtle)' } },
         splitLine: { show: false },
       },
       visualMap: {
@@ -189,14 +189,14 @@ const TeamHealthPage: React.FC = () => {
         orient: 'horizontal',
         left: 'center',
         bottom: 10,
-        textStyle: { color: 'var(--zb-text-secondary)' },
+        textStyle: { color: 'var(--zm-text-secondary)' },
       },
       series: [
         {
           type: 'heatmap',
           data: points,
           encode: { x: 0, y: 1, value: 2 },
-          emphasis: { itemStyle: { borderColor: 'var(--zb-text-primary)', borderWidth: 1 } },
+          emphasis: { itemStyle: { borderColor: 'var(--zm-text-primary)', borderWidth: 1 } },
         },
       ],
     }
@@ -260,7 +260,7 @@ const TeamHealthPage: React.FC = () => {
         trigger: 'item',
         formatter: (p: any) => `${p.name}<br/>${p.value}h（${(p.percent ?? 0).toFixed(1)}%）`,
       },
-      legend: { top: 0, textStyle: { color: 'var(--zb-text-secondary)' } },
+      legend: { top: 0, textStyle: { color: 'var(--zm-text-secondary)' } },
       series: [
         {
           type: 'pie',
@@ -271,7 +271,7 @@ const TeamHealthPage: React.FC = () => {
             value: Number(it.consumed_sum ?? 0),
             _object_type: it.object_type,
           })),
-          label: { color: 'var(--zb-text-secondary)' },
+          label: { color: 'var(--zm-text-secondary)' },
         },
       ],
     }
@@ -290,7 +290,7 @@ const TeamHealthPage: React.FC = () => {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <Text style={{ color: 'var(--zb-text-primary)', fontSize: 18, fontWeight: 600 }}>团队负荷与工时健康度</Text>
+        <Text style={{ color: 'var(--zm-text-primary)', fontSize: 18, fontWeight: 600 }}>团队负荷与工时健康度</Text>
         <Space style={{ marginLeft: 12 }} wrap>
           <GroupSelect
             value={groupId}
@@ -308,8 +308,8 @@ const TeamHealthPage: React.FC = () => {
       <Card
         style={{
           marginBottom: 16,
-          background: 'var(--zb-bg-surface)',
-          border: '1px solid var(--zb-border-subtle)',
+          background: 'var(--zm-bg-surface)',
+          border: '1px solid var(--zm-border-subtle)',
           borderRadius: 12,
         }}
       >
@@ -323,7 +323,7 @@ const TeamHealthPage: React.FC = () => {
             disabledDate={(current) => Math.abs(current.diff(range[0], 'day')) > 180}
           />
           <Switch checked={excludeWeekend} onChange={setExcludeWeekend} />
-          <Text style={{ color: 'var(--zb-text-secondary)' }}>过滤周末</Text>
+          <Text style={{ color: 'var(--zm-text-secondary)' }}>过滤周末</Text>
           <Select
             allowClear
             showSearch
@@ -336,7 +336,7 @@ const TeamHealthPage: React.FC = () => {
             onChange={(v) => setAccount(v as string | undefined)}
           />
           <Space size={6}>
-            <Text style={{ color: 'var(--zb-text-muted)' }}>达标</Text>
+            <Text style={{ color: 'var(--zm-text-muted)' }}>达标</Text>
             <InputNumber
               min={0}
               step={0.5}
@@ -344,7 +344,7 @@ const TeamHealthPage: React.FC = () => {
               onChange={(v) => setThresholds((s) => ({ ...s, targetHours: Number(v ?? 8) }))}
               style={{ width: 90 }}
             />
-            <Text style={{ color: 'var(--zb-text-muted)' }}>过载</Text>
+            <Text style={{ color: 'var(--zm-text-muted)' }}>过载</Text>
             <InputNumber
               min={0}
               step={0.5}
@@ -352,7 +352,7 @@ const TeamHealthPage: React.FC = () => {
               onChange={(v) => setThresholds((s) => ({ ...s, overloadHours: Number(v ?? 12) }))}
               style={{ width: 90 }}
             />
-            <Text style={{ color: 'var(--zb-text-muted)' }}>Bug阈值%</Text>
+            <Text style={{ color: 'var(--zm-text-muted)' }}>Bug阈值%</Text>
             <InputNumber
               min={0}
               max={100}
@@ -370,11 +370,11 @@ const TeamHealthPage: React.FC = () => {
           <Card
             title="工时填报热力图"
             loading={heatmapLoading}
-            style={{ background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 }}
+            style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}
             extra={
               <Space>
-                <Text style={{ color: 'var(--zb-text-muted)' }}>达标≥{thresholds.targetHours}h</Text>
-                <Text style={{ color: 'var(--zb-text-muted)' }}>过载{'>'}{thresholds.overloadHours}h</Text>
+                <Text style={{ color: 'var(--zm-text-muted)' }}>达标≥{thresholds.targetHours}h</Text>
+                <Text style={{ color: 'var(--zm-text-muted)' }}>过载{'>'}{thresholds.overloadHours}h</Text>
               </Space>
             }
           >
@@ -434,7 +434,7 @@ const TeamHealthPage: React.FC = () => {
           <Card
             title="人员资源负载分布"
             loading={userLoadLoading}
-            style={{ background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 }}
+            style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}
           >
             <Table
               size="small"
@@ -446,7 +446,7 @@ const TeamHealthPage: React.FC = () => {
                   title: '人员',
                   dataIndex: 'account',
                   render: (_: any, r: any) => (
-                    <Text style={{ color: 'var(--zb-text-primary)' }}>{r.realname?.trim() ? `${r.realname}（${r.account}）` : r.account}</Text>
+                    <Text style={{ color: 'var(--zm-text-primary)' }}>{r.realname?.trim() ? `${r.realname}（${r.account}）` : r.account}</Text>
                   ),
                 },
                 { title: '未完成数', dataIndex: 'open_task_count', width: 90 },
@@ -457,14 +457,14 @@ const TeamHealthPage: React.FC = () => {
                   render: (_: any, r: any) => (
                     <a
                       onClick={() => void openTaskDrawer(r.account)}
-                      style={{ color: 'var(--zb-primary-text)' }}
+                      style={{ color: 'var(--zm-primary-text)' }}
                     >查看</a>
                   ),
                 },
               ]}
               style={{ background: 'transparent' }}
             />
-            <div style={{ marginTop: 10, color: 'var(--zb-text-muted)', fontSize: 12 }}>
+            <div style={{ marginTop: 10, color: 'var(--zm-text-muted)', fontSize: 12 }}>
               说明：当前按任务状态聚合（wait/doing/active/pause）；点击“查看”可进一步按状态筛选钻取任务列表。
             </div>
           </Card>
@@ -474,8 +474,8 @@ const TeamHealthPage: React.FC = () => {
           <Card
             title="精力投入分布（按报工关联类型）"
             loading={distLoading}
-            style={{ background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 }}
-            extra={<Text style={{ color: 'var(--zb-text-muted)' }}>Bug占比阈值：{Math.round(thresholds.bugPercentAlert * 100)}%</Text>}
+            style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}
+            extra={<Text style={{ color: 'var(--zm-text-muted)' }}>Bug占比阈值：{Math.round(thresholds.bugPercentAlert * 100)}%</Text>}
           >
             {bugAlert && (
               <Alert
@@ -501,11 +501,11 @@ const TeamHealthPage: React.FC = () => {
       </Row>
 
       <Drawer
-        title={<Text style={{ color: 'var(--zb-text-primary)' }}>{effortDrawer.title}</Text>}
+        title={<Text style={{ color: 'var(--zm-text-primary)' }}>{effortDrawer.title}</Text>}
         open={effortDrawer.open}
         width={860}
         onClose={() => setEffortDrawer({ open: false, title: '', params: null })}
-        styles={{ body: { background: 'var(--zb-bg-canvas)' }, header: { background: 'var(--zb-bg-canvas)' } }}
+        styles={{ body: { background: 'var(--zm-bg-canvas)' }, header: { background: 'var(--zm-bg-canvas)' } }}
       >
         <Table
           rowKey="id"
@@ -518,18 +518,18 @@ const TeamHealthPage: React.FC = () => {
             { title: '消耗(h)', dataIndex: 'consumed', width: 90 },
             { title: '类型', dataIndex: 'object_type', width: 90 },
             { title: '关联ID', dataIndex: 'object_id', width: 90 },
-            { title: '工作内容', dataIndex: 'work', render: (v: string) => <Text style={{ color: 'var(--zb-text-secondary)' }}>{v}</Text> },
+            { title: '工作内容', dataIndex: 'work', render: (v: string) => <Text style={{ color: 'var(--zm-text-secondary)' }}>{v}</Text> },
           ]}
           style={{ background: 'transparent' }}
         />
       </Drawer>
 
       <Drawer
-        title={<Text style={{ color: 'var(--zb-text-primary)' }}>{taskDrawer.title}</Text>}
+        title={<Text style={{ color: 'var(--zm-text-primary)' }}>{taskDrawer.title}</Text>}
         open={taskDrawer.open}
         width={960}
         onClose={() => setTaskDrawer({ open: false, title: '' })}
-        styles={{ body: { background: 'var(--zb-bg-canvas)' }, header: { background: 'var(--zb-bg-canvas)' } }}
+        styles={{ body: { background: 'var(--zm-bg-canvas)' }, header: { background: 'var(--zm-bg-canvas)' } }}
         extra={
           <Space>
             <Select
@@ -560,7 +560,7 @@ const TeamHealthPage: React.FC = () => {
           pagination={false}
           columns={[
             { title: 'ID', dataIndex: 'id', width: 80 },
-            { title: '任务名', dataIndex: 'name', render: (v: string) => <Text style={{ color: 'var(--zb-text-primary)' }}>{v}</Text> },
+            { title: '任务名', dataIndex: 'name', render: (v: string) => <Text style={{ color: 'var(--zm-text-primary)' }}>{v}</Text> },
             { title: '状态', dataIndex: 'status', width: 110, render: (v: string) => <Tag>{v}</Tag> },
             { title: '预估(h)', dataIndex: 'estimate', width: 90 },
             { title: '消耗(h)', dataIndex: 'consumed', width: 90 },

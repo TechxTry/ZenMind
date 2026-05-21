@@ -2,7 +2,7 @@ package db
 
 import (
 	"time"
-	"zenboard/internal/models"
+	"zenmind/internal/models"
 )
 
 type AuditInput struct {

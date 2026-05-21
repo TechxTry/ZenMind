@@ -66,13 +66,13 @@ const ZentaoEffortProbeCard: React.FC = () => {
 
   return (
     <Card
-      title={<Text style={{ color: 'var(--zb-text-primary)' }}>禅道报工接口诊断</Text>}
+      title={<Text style={{ color: 'var(--zm-text-primary)' }}>禅道报工接口诊断</Text>}
       style={{
-        background: 'var(--zb-bg-surface)',
-        border: '1px solid var(--zb-border-subtle)',
+        background: 'var(--zm-bg-surface)',
+        border: '1px solid var(--zm-border-subtle)',
         borderRadius: 12,
       }}
-      styles={{ header: { borderBottom: '1px solid var(--zb-border-subtle)' } }}
+      styles={{ header: { borderBottom: '1px solid var(--zm-border-subtle)' } }}
       extra={
         <Space wrap>
           <Button onClick={() => void refreshStatus()} loading={checkingStatus}>
@@ -92,14 +92,14 @@ const ZentaoEffortProbeCard: React.FC = () => {
             onClick={() => void handleProbe()}
             loading={probing}
             disabled={!authStatus?.bound}
-            style={{ background: 'var(--zb-brand-gradient)', border: 'none' }}
+            style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}
           >
             开始诊断
           </Button>
         </Space>
       }
     >
-      <Text style={{ color: 'var(--zb-text-muted)', fontSize: 12 }}>
+      <Text style={{ color: 'var(--zm-text-muted)', fontSize: 12 }}>
         使用当前绑定的会话 Cookie，对禅道常见报工 URL 做<strong>只读 GET 探测</strong>，检测真实 URL、表单字段名与
         CSRF 名称。结果用于后端对齐写入逻辑，不会产生任何数据副作用。
       </Text>
@@ -173,7 +173,7 @@ const ProbeResultView: React.FC<{ data: ZentaoProbeResult }> = ({ data }) => {
       )}
 
       {data.notes && data.notes.length > 0 ? (
-        <ul style={{ marginTop: 8, color: 'var(--zb-text-muted)', fontSize: 12 }}>
+        <ul style={{ marginTop: 8, color: 'var(--zm-text-muted)', fontSize: 12 }}>
           {data.notes.map((n, i) => (
             <li key={i}>{n}</li>
           ))}
@@ -181,21 +181,21 @@ const ProbeResultView: React.FC<{ data: ZentaoProbeResult }> = ({ data }) => {
       ) : null}
 
       <Divider style={{ margin: '16px 0 8px' }} />
-      <Text style={{ color: 'var(--zb-text-secondary)' }}>会话探测</Text>
+      <Text style={{ color: 'var(--zm-text-secondary)' }}>会话探测</Text>
       <ProbeEndpointTable rows={data.session_check} />
 
       <Divider style={{ margin: '16px 0 8px' }} />
-      <Text style={{ color: 'var(--zb-text-secondary)' }}>报工 URL 候选（webform）</Text>
+      <Text style={{ color: 'var(--zm-text-secondary)' }}>报工 URL 候选（webform）</Text>
       <ProbeEndpointTable rows={data.effort_endpoints} showFields showSnippet />
 
       <Divider style={{ margin: '16px 0 8px' }} />
-      <Text style={{ color: 'var(--zb-text-secondary)' }}>REST API v1 探测（禅道 15+ Biz/Pro/Max）</Text>
+      <Text style={{ color: 'var(--zm-text-secondary)' }}>REST API v1 探测（禅道 15+ Biz/Pro/Max）</Text>
       <ProbeEndpointTable rows={data.api_endpoints} showFields showSnippet />
 
       {data.api_login ? (
         <>
           <Divider style={{ margin: '16px 0 8px' }} />
-          <Text style={{ color: 'var(--zb-text-secondary)' }}>API 登录实测（POST /api.php/v1/tokens）</Text>
+          <Text style={{ color: 'var(--zm-text-secondary)' }}>API 登录实测（POST /api.php/v1/tokens）</Text>
           <div style={{ marginTop: 8 }}>
             {data.api_login.ok ? (
               <Alert
@@ -239,11 +239,11 @@ const ProbeEndpointTable: React.FC<{
           width: '100%',
           fontSize: 12,
           borderCollapse: 'collapse',
-          color: 'var(--zb-text-secondary)',
+          color: 'var(--zm-text-secondary)',
         }}
       >
         <thead>
-          <tr style={{ textAlign: 'left', color: 'var(--zb-text-muted)' }}>
+          <tr style={{ textAlign: 'left', color: 'var(--zm-text-muted)' }}>
             <th style={{ padding: '6px 8px' }}>Label</th>
             <th style={{ padding: '6px 8px' }}>URL</th>
             <th style={{ padding: '6px 8px' }}>Status</th>
@@ -256,7 +256,7 @@ const ProbeEndpointTable: React.FC<{
             const ok = r.status >= 200 && r.status < 400 && !r.is_login_page && !r.error
             return (
               <React.Fragment key={i}>
-                <tr style={{ borderTop: '1px solid var(--zb-border-subtle)' }}>
+                <tr style={{ borderTop: '1px solid var(--zm-border-subtle)' }}>
                   <td style={{ padding: '6px 8px' }}>
                     {r.method ? <Tag>{r.method}</Tag> : null}
                     {r.label}
@@ -278,13 +278,13 @@ const ProbeEndpointTable: React.FC<{
                       {r.form_action ? <div>action: {r.form_action}</div> : null}
                       {r.csrf_name ? <div>csrf: {r.csrf_name}</div> : null}
                       {r.found_fields && r.found_fields.length > 0 ? (
-                        <div style={{ color: 'var(--zb-text-muted)' }}>
+                        <div style={{ color: 'var(--zm-text-muted)' }}>
                           {r.found_fields.join(', ')}
                         </div>
                       ) : null}
                     </td>
                   ) : null}
-                  <td style={{ padding: '6px 8px', color: 'var(--zb-text-muted)' }}>
+                  <td style={{ padding: '6px 8px', color: 'var(--zm-text-muted)' }}>
                     {r.error ?? (r.redirected ? `→ ${r.final_url}` : r.content_type ?? '')}
                   </td>
                 </tr>
@@ -296,7 +296,7 @@ const ProbeEndpointTable: React.FC<{
                         padding: '4px 8px 10px',
                         fontFamily: 'monospace',
                         fontSize: 11,
-                        color: 'var(--zb-text-muted)',
+                        color: 'var(--zm-text-muted)',
                         wordBreak: 'break-all',
                       }}
                     >

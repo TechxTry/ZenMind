@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"zenboard/internal/db"
+	"zenmind/internal/db"
 
 	"github.com/gin-gonic/gin"
 )

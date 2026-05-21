@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"zenboard/internal/config"
-	"zenboard/internal/crypto"
+	"zenmind/internal/config"
+	"zenmind/internal/crypto"
 )
 
 type UserCalendarAccount struct {

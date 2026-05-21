@@ -40,8 +40,21 @@ import {
   MacMonthCalendar,
   getCalendarEventDisplayColor,
 } from '../../components/MacMonthCalendar'
+import MyWorkbenchSettings from '../../components/MyWorkbenchSettings'
+import TableColumnSettings from '../../components/TableColumnSettings'
+import { resizableTableComponents } from '../../components/ResizableTableHeaderCell'
+import {
+  readWeekStartsOn,
+  saveWeekStartsOn,
+  type WeekStartsOn,
+} from '../../utils/myWorkbenchCalendarPrefs'
+import { useTableColumnPrefs } from '../../hooks/useTableColumnPrefs'
+import type { ColumnMeta } from '../../utils/tableColumnPrefs'
 
 const { Text } = Typography
+
+const myWorkbenchTaskDetailHref = (taskId: number) =>
+  `/workbench/task/${taskId}?from=/my-workbench`
 
 type TaskRow = {
   id: number
@@ -83,6 +96,22 @@ const STATUS_OPTIONS = [
   { value: 'wait', label: '未开始' },
   { value: 'done', label: '已完成' },
   { value: 'closed', label: '已关闭' },
+]
+
+const MY_WORKBENCH_TASK_COLUMN_METAS: ColumnMeta[] = [
+  { key: 'actions', title: '报工', defaultWidth: 88 },
+  { key: 'id', title: 'ID', defaultWidth: 70 },
+  { key: 'name', title: '任务名', defaultWidth: 180 },
+  { key: 'status', title: '状态', defaultWidth: 100 },
+  { key: 'estimate', title: '预估(h)', defaultWidth: 90 },
+  { key: 'consumed', title: '消耗(h)', defaultWidth: 90 },
+]
+
+const MY_WORKBENCH_EFFORT_COLUMN_METAS: ColumnMeta[] = [
+  { key: 'work_date', title: '日期', defaultWidth: 110 },
+  { key: 'consumed', title: '耗时(h)', defaultWidth: 90 },
+  { key: 'work', title: '工作内容', defaultWidth: 200 },
+  { key: 'object_id', title: '任务', defaultWidth: 90 },
 ]
 
 const statusColor: Record<string, string> = {
@@ -131,8 +160,10 @@ const MyWorkbenchPage: React.FC = () => {
   const location = useLocation()
   const screens = Grid.useBreakpoint()
   const me = useAuthStore((s) => s.me)
+  const systemUserId = me?.user?.id
   const bindingAccount = (me?.zentao_binding?.zentao_account ?? '').trim()
   const [zentaoBound, setZentaoBound] = useState<boolean | null>(null)
+  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(readWeekStartsOn)
 
   const [status, setStatus] = useState<string>('doing')
   const [tasksPage, setTasksPage] = useState(1)
@@ -348,6 +379,18 @@ const MyWorkbenchPage: React.FC = () => {
     }
   }, [calPanel])
 
+  const getDailyHours = useCallback(
+    (date: Dayjs) => {
+      const key = date.format('YYYY-MM-DD')
+      if (key === today) return todayHours
+      if (!aggregate?.efforts?.length) return 0
+      return (aggregate.efforts ?? [])
+        .filter((e) => dayjs(e.work_date).format('YYYY-MM-DD') === key)
+        .reduce((s, e) => s + Number(e.consumed ?? 0), 0)
+    },
+    [aggregate, today, todayHours],
+  )
+
   const cellDots = useCallback(
     (date: Dayjs) => {
       if (!aggregate) return { n: 0, colors: [] as string[] }
@@ -388,11 +431,12 @@ const MyWorkbenchPage: React.FC = () => {
   const taskPlanEvents = dayDetail.external.filter((e) => e.source_type === 'task')
   const otherCalendarEvents = dayDetail.external.filter((e) => e.source_type !== 'task')
   const desktopLayout = !!screens.xl
-  const rightPaneHeight = desktopLayout ? (screens.xxl ? 860 : 760) : undefined
-  const todayPanelHeight = rightPaneHeight ? Math.round((rightPaneHeight - 12) * 0.4) : undefined
-  const tasksPanelHeight = rightPaneHeight ? rightPaneHeight - 12 - (todayPanelHeight ?? 0) : undefined
+  const rightPaneReferenceHeight = desktopLayout ? (screens.xxl ? 860 : 760) : undefined
+  const todayPanelHeight = rightPaneReferenceHeight
+    ? Math.round((rightPaneReferenceHeight - 12) * 0.4)
+    : undefined
   const todayTableScrollY = todayPanelHeight ? Math.max(180, todayPanelHeight - 128) : undefined
-  const tasksTableScrollY = tasksPanelHeight ? Math.max(240, tasksPanelHeight - 186) : undefined
+  const rightPaneCardBodyPadding = 12
 
   useEffect(() => {
     void refreshAuth()
@@ -605,7 +649,7 @@ const MyWorkbenchPage: React.FC = () => {
           {hint && <Alert type="info" showIcon message={hint} style={{ marginTop: 8 }} />}
           {attempts.length > 0 && (
             <div style={{ marginTop: 12 }}>
-              <Text style={{ color: 'var(--zb-text-muted)', fontSize: 12 }}>API variant 尝试明细（按顺序）：</Text>
+              <Text style={{ color: 'var(--zm-text-muted)', fontSize: 12 }}>API variant 尝试明细（按顺序）：</Text>
               <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {attempts.map((a, idx) => (
                   <div key={idx} style={{ background: '#f6f8fa', padding: 8, borderRadius: 4, fontSize: 12 }}>
@@ -637,25 +681,25 @@ const MyWorkbenchPage: React.FC = () => {
           )}
           {apiBody && (
             <div style={{ marginTop: 12 }}>
-              <Text style={{ color: 'var(--zb-text-muted)', fontSize: 12 }}>禅道 API 响应体：</Text>
+              <Text style={{ color: 'var(--zm-text-muted)', fontSize: 12 }}>禅道 API 响应体：</Text>
               <pre style={{ background: '#f6f8fa', padding: 8, borderRadius: 4, fontSize: 12, whiteSpace: 'pre-wrap' }}>{typeof apiBody === 'string' ? apiBody : JSON.stringify(apiBody, null, 2)}</pre>
             </div>
           )}
           {apiError && !apiBody && (
             <div style={{ marginTop: 12 }}>
-              <Text style={{ color: 'var(--zb-text-muted)', fontSize: 12 }}>API 错误详情：</Text>
+              <Text style={{ color: 'var(--zm-text-muted)', fontSize: 12 }}>API 错误详情：</Text>
               <pre style={{ background: '#f6f8fa', padding: 8, borderRadius: 4, fontSize: 12, whiteSpace: 'pre-wrap' }}>{apiError}</pre>
             </div>
           )}
           {webformError && (
             <div style={{ marginTop: 12 }}>
-              <Text style={{ color: 'var(--zb-text-muted)', fontSize: 12 }}>Webform 兜底错误：</Text>
+              <Text style={{ color: 'var(--zm-text-muted)', fontSize: 12 }}>Webform 兜底错误：</Text>
               <pre style={{ background: '#f6f8fa', padding: 8, borderRadius: 4, fontSize: 12, whiteSpace: 'pre-wrap' }}>{webformError}</pre>
             </div>
           )}
           {resultJSON && (
             <div style={{ marginTop: 12 }}>
-              <Text style={{ color: 'var(--zb-text-muted)', fontSize: 12 }}>原始 result：</Text>
+              <Text style={{ color: 'var(--zm-text-muted)', fontSize: 12 }}>原始 result：</Text>
               <pre style={{ background: '#f6f8fa', padding: 8, borderRadius: 4, fontSize: 12, whiteSpace: 'pre-wrap' }}>{resultJSON}</pre>
             </div>
           )}
@@ -664,48 +708,93 @@ const MyWorkbenchPage: React.FC = () => {
     })
   }
 
-  const taskColumns = [
-    { title: 'ID', dataIndex: 'id', width: 70 },
-    {
-      title: '任务名',
-      dataIndex: 'name',
-      render: (v: string, r: TaskRow) => (
-        <Link to={`/workbench/task/${r.id}?from=/my-workbench`} style={{ color: 'var(--zb-text-primary)' }}>
-          {v}
-        </Link>
-      ),
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 100,
-      render: (v: string) => <Tag color={statusColor[v] ?? 'default'}>{v}</Tag>,
-    },
-    { title: '预估(h)', dataIndex: 'estimate', width: 90 },
-    { title: '消耗(h)', dataIndex: 'consumed', width: 90 },
-    {
-      title: '',
-      key: 'actions',
-      width: 110,
-      render: (_: any, r: TaskRow) => (
-        <Button type="primary" size="small" onClick={() => openDrawer(r.id)}
-          style={{ background: 'var(--zb-brand-gradient)', border: 'none' }}>
-          报工
-        </Button>
-      ),
-    },
-  ]
+  const allTaskColumns = useMemo(
+    () => [
+      {
+        key: 'actions',
+        title: '',
+        width: 88,
+        render: (_: unknown, r: TaskRow) => (
+          <Button
+            type="primary"
+            size="small"
+            onClick={() => openDrawer(r.id)}
+            style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}
+          >
+            报工
+          </Button>
+        ),
+      },
+      { key: 'id', title: 'ID', dataIndex: 'id', width: 70 },
+      {
+        key: 'name',
+        title: '任务名',
+        dataIndex: 'name',
+        width: 180,
+        render: (v: string, r: TaskRow) => (
+          <Link to={myWorkbenchTaskDetailHref(r.id)} style={{ color: 'var(--zm-text-primary)' }}>
+            {v}
+          </Link>
+        ),
+      },
+      {
+        key: 'status',
+        title: '状态',
+        dataIndex: 'status',
+        width: 100,
+        render: (v: string) => <Tag color={statusColor[v] ?? 'default'}>{v}</Tag>,
+      },
+      { key: 'estimate', title: '预估(h)', dataIndex: 'estimate', width: 90 },
+      { key: 'consumed', title: '消耗(h)', dataIndex: 'consumed', width: 90 },
+    ],
+    [openDrawer],
+  )
 
-  const effortColumns = [
-    { title: '日期', dataIndex: 'work_date', width: 110, render: (v: string) => v ? dayjs(v).format('YYYY-MM-DD') : '-' },
-    { title: '耗时(h)', dataIndex: 'consumed', width: 90 },
-    { title: '工作内容', dataIndex: 'work', render: (v: string) => <Text style={{ color: 'var(--zb-text-secondary)' }}>{v}</Text> },
-    { title: '任务', dataIndex: 'object_id', width: 90 },
-  ]
+  const allEffortColumns = useMemo(
+    () => [
+      {
+        key: 'work_date',
+        title: '日期',
+        dataIndex: 'work_date',
+        width: 110,
+        render: (v: string) => (v ? dayjs(v).format('YYYY-MM-DD') : '-'),
+      },
+      { key: 'consumed', title: '耗时(h)', dataIndex: 'consumed', width: 90 },
+      {
+        key: 'work',
+        title: '工作内容',
+        dataIndex: 'work',
+        render: (v: string) => <Text style={{ color: 'var(--zm-text-secondary)' }}>{v}</Text>,
+      },
+      { key: 'object_id', title: '任务', dataIndex: 'object_id', width: 90 },
+    ],
+    [],
+  )
+
+  const {
+    columns: taskColumns,
+    prefs: taskColumnPrefs,
+    setPrefs: setTaskColumnPrefs,
+    resetPrefs: resetTaskColumnPrefs,
+    metas: taskColumnMetas,
+  } = useTableColumnPrefs(systemUserId, 'my-workbench.tasks', allTaskColumns, MY_WORKBENCH_TASK_COLUMN_METAS)
+
+  const {
+    columns: effortColumns,
+    prefs: effortColumnPrefs,
+    setPrefs: setEffortColumnPrefs,
+    resetPrefs: resetEffortColumnPrefs,
+    metas: effortColumnMetas,
+  } = useTableColumnPrefs(
+    systemUserId,
+    'my-workbench.today-efforts',
+    allEffortColumns,
+    MY_WORKBENCH_EFFORT_COLUMN_METAS,
+  )
 
   const renderEffortList = (rows: EffortLike[]) => {
     if (rows.length === 0) {
-      return <div style={{ marginTop: 6, color: 'var(--zb-text-muted)', fontSize: 12 }}>无记录</div>
+      return <div style={{ marginTop: 6, color: 'var(--zm-text-muted)', fontSize: 12 }}>无记录</div>
     }
     return (
       <List
@@ -731,7 +820,7 @@ const MyWorkbenchPage: React.FC = () => {
 
   const renderExternalEventList = (rows: CalendarExternalEvent[], emptyText: string) => {
     if (rows.length === 0) {
-      return <div style={{ marginTop: 6, color: 'var(--zb-text-muted)', fontSize: 12 }}>{emptyText}</div>
+      return <div style={{ marginTop: 6, color: 'var(--zm-text-muted)', fontSize: 12 }}>{emptyText}</div>
     }
     return (
       <List
@@ -751,8 +840,18 @@ const MyWorkbenchPage: React.FC = () => {
                   background: getCalendarEventDisplayColor(it),
                 }}
               />
-              <div>
-                <Text style={{ fontSize: 13 }}>{it.title}</Text>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {it.source_type === 'task' && it.source_id > 0 ? (
+                  <Link
+                    to={myWorkbenchTaskDetailHref(it.source_id)}
+                    style={{ fontSize: 13, color: 'var(--zm-text-primary)' }}
+                    onClick={() => setDayDetailModalOpen(false)}
+                  >
+                    {it.title}
+                  </Link>
+                ) : (
+                  <Text style={{ fontSize: 13 }}>{it.title}</Text>
+                )}
                 <div style={{ marginTop: 2 }}>
                   <Text type="secondary" style={{ fontSize: 12 }}>
                     {it.source_name}
@@ -773,16 +872,25 @@ const MyWorkbenchPage: React.FC = () => {
     <div>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <Text style={{ color: 'var(--zb-text-primary)', fontSize: 18, fontWeight: 600 }}>我的工作台</Text>
+          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+            <Text style={{ color: 'var(--zm-text-primary)', fontSize: 18, fontWeight: 600 }}>我的工作台</Text>
+            <MyWorkbenchSettings
+              weekStartsOn={weekStartsOn}
+              onWeekStartsOnChange={(v) => {
+                setWeekStartsOn(v)
+                saveWeekStartsOn(v)
+              }}
+            />
+          </span>
           <div style={{ marginTop: 6 }}>
-            <Text style={{ color: 'var(--zb-text-muted)', fontSize: 12 }}>
+            <Text style={{ color: 'var(--zm-text-muted)', fontSize: 12 }}>
               今日已报工 <b>{todayHours.toFixed(1)}</b> 小时
             </Text>
           </div>
         </div>
         <Space wrap>
           <Button type="primary" onClick={() => openDrawer(drawerTaskId)}
-            style={{ background: 'var(--zb-brand-gradient)', border: 'none' }}>
+            style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}>
             快速报工
           </Button>
         </Space>
@@ -812,13 +920,13 @@ const MyWorkbenchPage: React.FC = () => {
         }}
       >
         <Card
-          title={<Text style={{ color: 'var(--zb-text-primary)' }}>日历</Text>}
+          title={<Text style={{ color: 'var(--zm-text-primary)' }}>日历</Text>}
           styles={{
-            header: { borderBottom: '1px solid var(--zb-border-subtle)' },
+            header: { borderBottom: '1px solid var(--zm-border-subtle)' },
           }}
           style={{
-            background: 'var(--zb-bg-surface)',
-            border: '1px solid var(--zb-border-subtle)',
+            background: 'var(--zm-bg-surface)',
+            border: '1px solid var(--zm-border-subtle)',
             borderRadius: 12,
             minWidth: 0,
           }}
@@ -873,6 +981,10 @@ const MyWorkbenchPage: React.FC = () => {
               events={aggregate?.external ?? []}
               loading={aggLoading}
               getCellDots={cellDots}
+              getDailyHours={getDailyHours}
+              heatmapMaxHours={dailyStandardHours}
+              getTaskDetailHref={myWorkbenchTaskDetailHref}
+              weekStartsOn={weekStartsOn}
               onMonthChange={(d) => {
                 setCalPanel(d)
                 setSelectedDay((prev) => (prev.isSame(d, 'month') ? prev : d.startOf('month')))
@@ -883,7 +995,7 @@ const MyWorkbenchPage: React.FC = () => {
                 setDayDetailModalOpen(true)
               }}
             />
-            <div style={{ marginTop: 10, color: 'var(--zb-text-muted)', fontSize: 12 }}>
+            <div style={{ marginTop: 10, color: 'var(--zm-text-muted)', fontSize: 12 }}>
               选中日：外部事件 <b>{dayDetail.external.length}</b> 条 · 报工 <b>{dayDetail.efforts.length}</b> 条
               {(() => {
                 const { n } = cellDots(selectedDay)
@@ -897,33 +1009,52 @@ const MyWorkbenchPage: React.FC = () => {
         <div
           style={{
             display: 'grid',
-            gridTemplateRows: desktopLayout ? 'minmax(0, 2fr) minmax(0, 3fr)' : 'auto auto',
+            gridTemplateRows: 'auto auto',
             gap: 12,
-            height: rightPaneHeight,
-            minHeight: 0,
             minWidth: 0,
           }}
         >
           <Card
-            title={<Text style={{ color: 'var(--zb-text-primary)' }}>今日报工</Text>}
+            title={<Text style={{ color: 'var(--zm-text-primary)' }}>今日报工</Text>}
             styles={{
-              header: { borderBottom: '1px solid var(--zb-border-subtle)' },
-              body: desktopLayout ? { display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', minHeight: 0 } : undefined,
+              header: { borderBottom: '1px solid var(--zm-border-subtle)' },
+              body: desktopLayout
+                ? {
+                    padding: rightPaneCardBodyPadding,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100%',
+                    overflow: 'hidden',
+                    minHeight: 0,
+                  }
+                : { padding: rightPaneCardBodyPadding },
             }}
             style={{
-              background: 'var(--zb-bg-surface)',
-              border: '1px solid var(--zb-border-subtle)',
+              background: 'var(--zm-bg-surface)',
+              border: '1px solid var(--zm-border-subtle)',
               borderRadius: 12,
               height: todayPanelHeight,
               minWidth: 0,
             }}
-            extra={<Button onClick={() => void refreshTodayEfforts(bindingAccount)}>刷新</Button>}
+            extra={
+              <Space size="small">
+                <TableColumnSettings
+                  metas={effortColumnMetas}
+                  prefs={effortColumnPrefs}
+                  onChange={setEffortColumnPrefs}
+                  onReset={resetEffortColumnPrefs}
+                />
+                <Button onClick={() => void refreshTodayEfforts(bindingAccount)}>刷新</Button>
+              </Space>
+            }
           >
             <Table
               rowKey="id"
               size="small"
+              tableLayout="fixed"
               loading={effortsLoading}
               dataSource={todayEfforts}
+              components={resizableTableComponents}
               columns={effortColumns as any}
               pagination={false}
               scroll={{ x: 520, ...(todayTableScrollY ? { y: todayTableScrollY } : {}) }}
@@ -932,25 +1063,41 @@ const MyWorkbenchPage: React.FC = () => {
 
           <Card
             title={
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                <Text style={{ color: 'var(--zb-text-primary)' }}>我的任务</Text>
-                <Text type="secondary" style={{ fontSize: 12, color: 'var(--zb-text-muted)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                <Text style={{ color: 'var(--zm-text-primary)' }}>我的任务</Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    lineHeight: 1.4,
+                    color: 'var(--zm-text-disabled)',
+                    wordBreak: 'break-word',
+                  }}
+                >
                   任务信息需要等待后台数据同步，下次同步时间：{nextTasksSyncTimeText}
                 </Text>
               </div>
             }
             styles={{
-              header: { borderBottom: '1px solid var(--zb-border-subtle)' },
-              body: desktopLayout ? { display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', minHeight: 0 } : undefined,
+              header: { borderBottom: '1px solid var(--zm-border-subtle)' },
+              body: { padding: rightPaneCardBodyPadding },
             }}
             style={{
-              background: 'var(--zb-bg-surface)',
-              border: '1px solid var(--zb-border-subtle)',
+              background: 'var(--zm-bg-surface)',
+              border: '1px solid var(--zm-border-subtle)',
               borderRadius: 12,
-              height: tasksPanelHeight,
               minWidth: 0,
             }}
-            extra={<Button onClick={() => void refreshTasks(bindingAccount, tasksPage, tasksPageSize)}>刷新</Button>}
+            extra={
+              <Space size="small">
+                <TableColumnSettings
+                  metas={taskColumnMetas}
+                  prefs={taskColumnPrefs}
+                  onChange={setTaskColumnPrefs}
+                  onReset={resetTaskColumnPrefs}
+                />
+                <Button onClick={() => void refreshTasks(bindingAccount, tasksPage, tasksPageSize)}>刷新</Button>
+              </Space>
+            }
           >
             <Tabs
               size="small"
@@ -970,8 +1117,10 @@ const MyWorkbenchPage: React.FC = () => {
             <Table
               rowKey="id"
               size="small"
+              tableLayout="fixed"
               loading={tasksLoading}
               dataSource={tasks}
+              components={resizableTableComponents}
               columns={taskColumns as any}
               pagination={{
                 current: tasksPage,
@@ -981,7 +1130,7 @@ const MyWorkbenchPage: React.FC = () => {
                 showTotal: (t) => `共 ${t} 条`,
                 onChange: (p) => setTasksPage(p),
               }}
-              scroll={{ x: 720, ...(tasksTableScrollY ? { y: tasksTableScrollY } : {}) }}
+              scroll={{ x: 720 }}
             />
           </Card>
         </div>
@@ -1022,7 +1171,7 @@ const MyWorkbenchPage: React.FC = () => {
           <Space>
             <Button onClick={() => setDrawerOpen(false)}>取消</Button>
             <Button type="primary" loading={submitting} onClick={handleSubmit} disabled={!zentaoBound}
-              style={{ background: 'var(--zb-brand-gradient)', border: 'none' }}>
+              style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}>
               提交到禅道
             </Button>
           </Space>
@@ -1049,7 +1198,7 @@ const MyWorkbenchPage: React.FC = () => {
           />
         ) : null}
         <Form form={form} layout="vertical" onValuesChange={handleQuickFormValuesChange}>
-          <div style={{ marginBottom: 12, color: 'var(--zb-text-muted)', fontSize: 12 }}>
+          <div style={{ marginBottom: 12, color: 'var(--zm-text-muted)', fontSize: 12 }}>
             当前日期已报工{' '}
             <b>{quickDayHoursLoading ? '计算中…' : `${quickDayHours.toFixed(1)}h`}</b>
           </div>

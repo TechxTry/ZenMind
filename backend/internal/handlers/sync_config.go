@@ -2,9 +2,9 @@ package handlers
 
 import (
 	"net/http"
-	"zenboard/internal/config"
-	"zenboard/internal/db"
-	"zenboard/internal/scheduler"
+	"zenmind/internal/config"
+	"zenmind/internal/db"
+	"zenmind/internal/scheduler"
 
 	"github.com/gin-gonic/gin"
 )

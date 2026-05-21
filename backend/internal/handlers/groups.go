@@ -3,8 +3,8 @@ package handlers
 import (
 	"net/http"
 	"strconv"
-	"zenboard/internal/db"
-	"zenboard/internal/models"
+	"zenmind/internal/db"
+	"zenmind/internal/models"
 
 	"github.com/gin-gonic/gin"
 )

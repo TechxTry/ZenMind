@@ -17,8 +17,8 @@ type TransferItem = {
 }
 
 const cardStyle = {
-  background: 'var(--zb-bg-surface)',
-  border: '1px solid var(--zb-border-subtle)',
+  background: 'var(--zm-bg-surface)',
+  border: '1px solid var(--zm-border-subtle)',
   borderRadius: 12,
 }
 
@@ -162,7 +162,7 @@ const GroupsPage: React.FC = () => {
       title: '成员',
       dataIndex: 'title',
       key: 'title',
-      render: (v: string) => <Text style={{ color: 'var(--zb-text-primary)' }}>{v}</Text>,
+      render: (v: string) => <Text style={{ color: 'var(--zm-text-primary)' }}>{v}</Text>,
     },
     {
       title: '角色',
@@ -178,7 +178,7 @@ const GroupsPage: React.FC = () => {
       title: '已选成员',
       dataIndex: 'title',
       key: 'title',
-      render: (v: string) => <Text style={{ color: 'var(--zb-text-primary)' }}>{v}</Text>,
+      render: (v: string) => <Text style={{ color: 'var(--zm-text-primary)' }}>{v}</Text>,
     },
   ]), [])
 
@@ -222,23 +222,23 @@ const GroupsPage: React.FC = () => {
 
   return (
     <div>
-      <Title level={4} style={{ color: 'var(--zb-text-primary)', marginBottom: 24 }}>小组管理</Title>
+      <Title level={4} style={{ color: 'var(--zm-text-primary)', marginBottom: 24 }}>小组管理</Title>
       <Row gutter={24}>
         {/* Group List */}
         <Col span={8}>
           <Card
-            title={<Text style={{ color: 'var(--zb-text-primary)' }}>小组列表</Text>}
+            title={<Text style={{ color: 'var(--zm-text-primary)' }}>小组列表</Text>}
             style={cardStyle}
-            styles={{ header: { borderBottom: '1px solid var(--zb-border-subtle)' } }}
+            styles={{ header: { borderBottom: '1px solid var(--zm-border-subtle)' } }}
             extra={
               <Button type="primary" size="small" icon={<PlusOutlined />} onClick={openCreate}
-                style={{ background: 'var(--zb-brand-gradient)', border: 'none' }}>
+                style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}>
                 新建
               </Button>
             }
           >
             {groups.length === 0 && (
-              <Text style={{ color: 'var(--zb-text-muted)', display: 'block', textAlign: 'center', padding: 24 }}>
+              <Text style={{ color: 'var(--zm-text-muted)', display: 'block', textAlign: 'center', padding: 24 }}>
                 暂无小组，点击新建
               </Text>
             )}
@@ -253,29 +253,29 @@ const GroupsPage: React.FC = () => {
                   cursor: 'pointer',
                   transition: 'all .2s',
                   background: selectedGroup?.id === g.id
-                    ? 'var(--zb-primary-bg)'
-                    : 'var(--zb-bg-surface-muted)',
+                    ? 'var(--zm-primary-bg)'
+                    : 'var(--zm-bg-surface-muted)',
                   border: selectedGroup?.id === g.id
-                    ? '1px solid var(--zb-primary-text)'
-                    : '1px solid var(--zb-border-subtle)',
+                    ? '1px solid var(--zm-primary-text)'
+                    : '1px solid var(--zm-border-subtle)',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Space>
-                    <TeamOutlined style={{ color: 'var(--zb-primary-text)' }} />
-                    <Text style={{ color: 'var(--zb-text-primary)', fontWeight: 500 }}>{g.name}</Text>
+                    <TeamOutlined style={{ color: 'var(--zm-primary-text)' }} />
+                    <Text style={{ color: 'var(--zm-text-primary)', fontWeight: 500 }}>{g.name}</Text>
                   </Space>
                   <Space size={4} onClick={(e) => e.stopPropagation()}>
                     <Button size="small" type="text" icon={<EditOutlined />}
-                      style={{ color: 'var(--zb-text-muted)' }} onClick={() => openEdit(g)} />
+                      style={{ color: 'var(--zm-text-muted)' }} onClick={() => openEdit(g)} />
                     <Popconfirm title="确认删除此小组？" onConfirm={() => handleDelete(g.id)}>
                       <Button size="small" type="text" icon={<DeleteOutlined />}
-                        style={{ color: 'var(--zb-text-muted)' }} />
+                        style={{ color: 'var(--zm-text-muted)' }} />
                     </Popconfirm>
                   </Space>
                 </div>
                 {g.description && (
-                  <Text style={{ color: 'var(--zb-text-muted)', fontSize: 12, marginTop: 4, display: 'block' }}>
+                  <Text style={{ color: 'var(--zm-text-muted)', fontSize: 12, marginTop: 4, display: 'block' }}>
                     {g.description}
                   </Text>
                 )}
@@ -288,23 +288,23 @@ const GroupsPage: React.FC = () => {
         <Col span={16}>
           <Card
             title={
-              <Text style={{ color: 'var(--zb-text-primary)' }}>
+              <Text style={{ color: 'var(--zm-text-primary)' }}>
                 {selectedGroup ? `成员分配 — ${selectedGroup.name}` : '请选择小组'}
               </Text>
             }
             style={cardStyle}
-            styles={{ header: { borderBottom: '1px solid var(--zb-border-subtle)' } }}
+            styles={{ header: { borderBottom: '1px solid var(--zm-border-subtle)' } }}
             extra={
               selectedGroup && (
                 <Button type="primary" onClick={handleSaveMembers}
-                  style={{ background: 'var(--zb-brand-gradient)', border: 'none' }}>
+                  style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}>
                   保存成员
                 </Button>
               )
             }
           >
             {!selectedGroup ? (
-              <div style={{ textAlign: 'center', padding: 60, color: 'var(--zb-text-muted)' }}>
+              <div style={{ textAlign: 'center', padding: 60, color: 'var(--zm-text-muted)' }}>
                 ← 从左侧选择一个小组开始分配成员
               </div>
             ) : (
@@ -316,7 +316,7 @@ const GroupsPage: React.FC = () => {
                     targetKeys={targetKeys}
                     onChange={(keys) => setTargetKeys(keys as string[])}
                     render={(item) => item.title ?? ''}
-                    listStyle={{ width: '100%', height: transferListHeight, background: 'var(--zb-bg-surface-muted)', border: '1px solid var(--zb-border-subtle)' }}
+                    listStyle={{ width: '100%', height: transferListHeight, background: 'var(--zm-bg-surface-muted)', border: '1px solid var(--zm-border-subtle)' }}
                   >
                     {({
                       direction,
@@ -392,23 +392,23 @@ const GroupsPage: React.FC = () => {
 
       {/* Create/Edit Modal */}
       <Modal
-        title={<Text style={{ color: 'var(--zb-text-primary)' }}>{editTarget ? '编辑小组' : '新建小组'}</Text>}
+        title={<Text style={{ color: 'var(--zm-text-primary)' }}>{editTarget ? '编辑小组' : '新建小组'}</Text>}
         open={modalOpen}
         onOk={handleSaveGroup}
         onCancel={() => setModalOpen(false)}
         okText="保存"
         styles={{
-          content: { background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)' },
-          header: { background: 'var(--zb-bg-surface)' },
-          footer: { background: 'var(--zb-bg-surface)' },
+          content: { background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)' },
+          header: { background: 'var(--zm-bg-surface)' },
+          footer: { background: 'var(--zm-bg-surface)' },
         }}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="name" label={<Text style={{ color: 'var(--zb-text-secondary)' }}>组名</Text>}
+          <Form.Item name="name" label={<Text style={{ color: 'var(--zm-text-secondary)' }}>组名</Text>}
             rules={[{ required: true, message: '请输入组名' }]}>
             <Input placeholder="如：后端团队" />
           </Form.Item>
-          <Form.Item name="description" label={<Text style={{ color: 'var(--zb-text-secondary)' }}>描述</Text>}>
+          <Form.Item name="description" label={<Text style={{ color: 'var(--zm-text-secondary)' }}>描述</Text>}>
             <Input.TextArea placeholder="可选" rows={3} />
           </Form.Item>
         </Form>

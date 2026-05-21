@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"zenboard/internal/config"
-	"zenboard/internal/db"
-	"zenboard/internal/redisclient"
-	"zenboard/internal/zentao"
-	"zenboard/internal/zentaoauth"
+	"zenmind/internal/config"
+	"zenmind/internal/db"
+	"zenmind/internal/redisclient"
+	"zenmind/internal/zentao"
+	"zenmind/internal/zentaoauth"
 
 	"github.com/gin-gonic/gin"
 )

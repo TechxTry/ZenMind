@@ -115,7 +115,7 @@ const IterationDashboardPage: React.FC = () => {
     const s = burndown?.series ?? []
     return {
       tooltip: { trigger: 'axis' },
-      legend: { top: 0, textStyle: { color: 'var(--zb-text-secondary)' } },
+      legend: { top: 0, textStyle: { color: 'var(--zm-text-secondary)' } },
       grid: { left: 48, right: 16, top: 32, bottom: 32 },
       xAxis: { type: 'category', data: s.map((x: any) => x.day), axisLabel: { rotate: 45 } },
       yAxis: { type: 'value' },
@@ -130,7 +130,7 @@ const IterationDashboardPage: React.FC = () => {
     const s = cfd?.series ?? []
     return {
       tooltip: { trigger: 'axis' },
-      legend: { top: 0, textStyle: { color: 'var(--zb-text-secondary)' } },
+      legend: { top: 0, textStyle: { color: 'var(--zm-text-secondary)' } },
       grid: { left: 48, right: 16, top: 32, bottom: 32 },
       xAxis: { type: 'category', data: s.map((x: any) => x.day), axisLabel: { rotate: 45 } },
       yAxis: { type: 'value' },
@@ -151,7 +151,7 @@ const IterationDashboardPage: React.FC = () => {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <Text style={{ color: 'var(--zb-text-primary)', fontSize: 18, fontWeight: 600 }}>迭代看板</Text>
+        <Text style={{ color: 'var(--zm-text-primary)', fontSize: 18, fontWeight: 600 }}>迭代看板</Text>
         <Space style={{ marginLeft: 12 }} wrap>
           <RangePicker
             value={range}
@@ -164,9 +164,9 @@ const IterationDashboardPage: React.FC = () => {
         </Space>
       </div>
 
-      <Card style={{ marginBottom: 16, background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 }}>
+      <Card style={{ marginBottom: 16, background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}>
         <Space wrap>
-          <Text style={{ color: 'var(--zb-text-muted)' }}>迭代</Text>
+          <Text style={{ color: 'var(--zm-text-muted)' }}>迭代</Text>
           <Select
             showSearch
             optionFilterProp="label"
@@ -186,7 +186,7 @@ const IterationDashboardPage: React.FC = () => {
         <Col span={24}>
           <Card
             loading={overviewLoading}
-            style={{ background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 }}
+            style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}
             title="迭代概览"
           >
             <Row gutter={12}>
@@ -216,14 +216,14 @@ const IterationDashboardPage: React.FC = () => {
         </Col>
 
         <Col span={12}>
-          <Card title="燃尽（近似）" loading={burndownLoading} style={{ background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 }}>
+          <Card title="燃尽（近似）" loading={burndownLoading} style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}>
             <ReactECharts option={burndownOption} style={{ height: 320 }} />
           </Card>
         </Col>
         <Col span={12}>
-          <Card title="累计流图 CFD（近似）" loading={cfdLoading} style={{ background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 }}>
+          <Card title="累计流图 CFD（近似）" loading={cfdLoading} style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}>
             <ReactECharts option={cfdOption} style={{ height: 320 }} />
-            {cfd?.note ? <div style={{ marginTop: 8, color: 'var(--zb-text-muted)', fontSize: 12 }}>{cfd.note}</div> : null}
+            {cfd?.note ? <div style={{ marginTop: 8, color: 'var(--zm-text-muted)', fontSize: 12 }}>{cfd.note}</div> : null}
           </Card>
         </Col>
 
@@ -231,9 +231,9 @@ const IterationDashboardPage: React.FC = () => {
           <Card
             title="范围变更（execution字段变更）"
             loading={scopeLoading}
-            style={{ background: 'var(--zb-bg-surface)', border: '1px solid var(--zb-border-subtle)', borderRadius: 12 }}
+            style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}
           >
-            {scope?.note ? <div style={{ marginBottom: 8, color: 'var(--zb-text-muted)', fontSize: 12 }}>{scope.note}</div> : null}
+            {scope?.note ? <div style={{ marginBottom: 8, color: 'var(--zm-text-muted)', fontSize: 12 }}>{scope.note}</div> : null}
             <Table
               rowKey={(r: any) => `${r.time}-${r.object_type}-${r.object_id}-${r.field}`}
               size="small"
@@ -258,8 +258,8 @@ const IterationDashboardPage: React.FC = () => {
         open={taskDrawer.open}
         width={960}
         onClose={() => setTaskDrawer({ open: false, title: '', params: null })}
-        title={<Text style={{ color: 'var(--zb-text-primary)' }}>{taskDrawer.title}</Text>}
-        styles={{ body: { background: 'var(--zb-bg-canvas)' }, header: { background: 'var(--zb-bg-canvas)' } }}
+        title={<Text style={{ color: 'var(--zm-text-primary)' }}>{taskDrawer.title}</Text>}
+        styles={{ body: { background: 'var(--zm-bg-canvas)' }, header: { background: 'var(--zm-bg-canvas)' } }}
       >
         <Table
           rowKey="id"

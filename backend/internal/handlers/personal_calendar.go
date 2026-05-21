@@ -6,14 +6,81 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"zenboard/internal/db"
-	"zenboard/internal/extcal"
-	"zenboard/internal/models"
+	"zenmind/internal/db"
+	"zenmind/internal/extcal"
+	"zenmind/internal/models"
 
 	"github.com/gin-gonic/gin"
 )
 
 const maxCalendarAggregateDays = 120
+
+func calendarTimeOK(t *time.Time) bool {
+	if t == nil || t.IsZero() || t.Year() <= 1 {
+		return false
+	}
+	return true
+}
+
+// taskEffortSpan returns inclusive local-midnight bounds from efforts linked to a task.
+func taskEffortSpan(efforts []models.LocalEffort, taskID int64) (start, end time.Time, ok bool) {
+	for _, e := range efforts {
+		if strings.ToLower(strings.TrimSpace(e.ObjectType)) != "task" || e.ObjectID != taskID {
+			continue
+		}
+		if !calendarTimeOK(e.WorkDate) {
+			continue
+		}
+		d := e.WorkDate.In(time.Local)
+		day := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.Local)
+		if !ok {
+			start, end, ok = day, day, true
+			continue
+		}
+		if day.Before(start) {
+			start = day
+		}
+		if day.After(end) {
+			end = day
+		}
+	}
+	return start, end, ok
+}
+
+// taskMetaSpan derives a fallback plan window when there is no effort history in range.
+// Prefer deadline/assigned over opened_date so long-lived affair tasks do not paint the whole month.
+func taskMetaSpan(t models.LocalTask) (startAt, endAt *time.Time) {
+	for _, c := range []*time.Time{t.DeadlineDate, t.StartedDate, t.AssignedDate, t.OpenedDate} {
+		if calendarTimeOK(c) {
+			startAt = c
+			break
+		}
+	}
+	for _, c := range []*time.Time{t.FinishedDate, t.ClosedDate, t.DeadlineDate} {
+		if calendarTimeOK(c) {
+			endAt = c
+			break
+		}
+	}
+	if startAt == nil {
+		return nil, nil
+	}
+	if endAt == nil {
+		endAt = startAt
+	}
+	return startAt, endAt
+}
+
+func calendarDayBounds(startAt, endAt time.Time) (startDay, endDay time.Time) {
+	startLocal := startAt.In(time.Local)
+	endLocal := endAt.In(time.Local)
+	if endLocal.Before(startLocal) {
+		endLocal = startLocal
+	}
+	startDay = time.Date(startLocal.Year(), startLocal.Month(), startLocal.Day(), 0, 0, 0, 0, time.Local)
+	endDay = time.Date(endLocal.Year(), endLocal.Month(), endLocal.Day(), 23, 59, 59, 0, time.Local)
+	return startDay, endDay
+}
 
 func calendarWindowOK(from, to time.Time) bool {
 	if from.IsZero() || to.IsZero() || to.Before(from) {
@@ -156,11 +223,10 @@ func GetMyCalendarAggregate(c *gin.Context) {
 		}
 	}
 
-	// Tasks: convert "planned span" into all-day multi-day events so they appear on the month calendar.
-	// We interpret the task plan window using available timestamps in priority order:
-	//   start = opened_date || started_date || assigned_date
-	//   end   = closed_date || finished_date || deadline_date || start
-	// These are TIMESTAMPTZ columns; we turn them into local-midnight for consistent all-day rendering.
+	// Tasks: convert plan span into all-day multi-day events on the month calendar.
+	// If the task has efforts in range, use min/max work_date (matches actual 报工 days).
+	// Otherwise: start = deadline || started || assigned || opened;
+	//            end   = finished || closed || deadline || start.
 	tasks := make([]models.LocalTask, 0)
 	var acc string
 	if cu.ZentaoBinding != nil {
@@ -170,8 +236,8 @@ func GetMyCalendarAggregate(c *gin.Context) {
 		// Date overlap filter using DATE(..) casts to avoid timezone mismatch.
 		// Overlap rule (inclusive days):
 		//   start_day <= dateTo AND end_day >= dateFrom
-		startExpr := "COALESCE(opened_date, started_date, assigned_date)"
-		endExpr := "COALESCE(closed_date, finished_date, deadline_date, COALESCE(opened_date, started_date, assigned_date))"
+		startExpr := "COALESCE(deadline_date, started_date, assigned_date, opened_date)"
+		endExpr := "COALESCE(finished_date, NULLIF(closed_date, '0001-01-01'::timestamptz), deadline_date, COALESCE(deadline_date, started_date, assigned_date, opened_date))"
 		q := db.PG.Model(&models.LocalTask{}).
 			Where("deleted = false").
 			Where("assigned_to = ?", acc).
@@ -228,35 +294,16 @@ func GetMyCalendarAggregate(c *gin.Context) {
 	}
 
 	for _, t := range tasks {
-		// Pick start/end (may be nil depending on Zentao configuration).
-		var startAt *time.Time
-		if t.OpenedDate != nil {
-			startAt = t.OpenedDate
-		} else if t.StartedDate != nil {
-			startAt = t.StartedDate
-		} else if t.AssignedDate != nil {
-			startAt = t.AssignedDate
+		var startDay, endDay time.Time
+		if es, ee, ok := taskEffortSpan(efforts, t.ID); ok {
+			startDay, endDay = calendarDayBounds(es, ee)
+		} else {
+			startAt, endAt := taskMetaSpan(t)
+			if startAt == nil {
+				continue
+			}
+			startDay, endDay = calendarDayBounds(*startAt, *endAt)
 		}
-		if startAt == nil {
-			continue
-		}
-		var endAt *time.Time
-		if t.ClosedDate != nil {
-			endAt = t.ClosedDate
-		} else if t.FinishedDate != nil {
-			endAt = t.FinishedDate
-		} else if t.DeadlineDate != nil {
-			endAt = t.DeadlineDate
-		}
-		if endAt == nil {
-			endAt = startAt
-		}
-
-		startLocal := startAt.In(time.Local)
-		endLocal := endAt.In(time.Local)
-		startDay := time.Date(startLocal.Year(), startLocal.Month(), startLocal.Day(), 0, 0, 0, 0, time.Local)
-		// For frontend all-day "touch" logic, provide an inclusive end timestamp.
-		endDay := time.Date(endLocal.Year(), endLocal.Month(), endLocal.Day(), 23, 59, 59, 0, time.Local)
 
 		external = append(external, extItem{
 			SourceType: "task",

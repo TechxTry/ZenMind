@@ -63,29 +63,29 @@ const BusinessConfigPage: React.FC = () => {
   }
 
   const cardStyle = {
-    background: 'var(--zb-bg-surface)',
-    border: '1px solid var(--zb-border-subtle)',
+    background: 'var(--zm-bg-surface)',
+    border: '1px solid var(--zm-border-subtle)',
     borderRadius: 12,
   }
 
   return (
     <div style={{ maxWidth: 1000 }}>
-      <Title level={4} style={{ color: 'var(--zb-text-primary)', marginBottom: 24 }}>
+      <Title level={4} style={{ color: 'var(--zm-text-primary)', marginBottom: 24 }}>
         业务配置
       </Title>
 
       <Spin spinning={loading}>
         <Card
-          title={<Text style={{ color: 'var(--zb-text-primary)' }}>工时标准</Text>}
+          title={<Text style={{ color: 'var(--zm-text-primary)' }}>工时标准</Text>}
           style={cardStyle}
-          styles={{ header: { borderBottom: '1px solid var(--zb-border-subtle)' } }}
+          styles={{ header: { borderBottom: '1px solid var(--zm-border-subtle)' } }}
           extra={
             <Button
               type="primary"
               icon={<SaveOutlined />}
               loading={saving}
               onClick={handleSave}
-              style={{ background: 'var(--zb-brand-gradient)', border: 'none' }}
+              style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}
             >
               保存
             </Button>
@@ -94,7 +94,7 @@ const BusinessConfigPage: React.FC = () => {
           <Form form={form} layout="vertical">
             <Form.Item
               name="daily_standard_hours"
-              label={<Text style={{ color: 'var(--zb-text-secondary)' }}>每日标准工时</Text>}
+              label={<Text style={{ color: 'var(--zm-text-secondary)' }}>每日标准工时</Text>}
               rules={[
                 { required: true, message: '请输入每日标准工时' },
                 { type: 'number', min: 1, max: 24, message: '范围 1～24 小时' },
@@ -108,25 +108,25 @@ const BusinessConfigPage: React.FC = () => {
                 addonAfter="小时"
               />
             </Form.Item>
-            <Text style={{ color: 'var(--zb-text-muted)', fontSize: 12 }}>
+            <Text style={{ color: 'var(--zm-text-muted)', fontSize: 12 }}>
               用于分析看板等模块计算员工每日工作饱和度，范围 1～24 小时，默认 8 小时。
             </Text>
           </Form>
         </Card>
 
-        <Divider style={{ borderColor: 'var(--zb-border-subtle)' }} />
+        <Divider style={{ borderColor: 'var(--zm-border-subtle)' }} />
 
         <Card
-          title={<Text style={{ color: 'var(--zb-text-primary)' }}>禅道 API（用于写入报工等）</Text>}
+          title={<Text style={{ color: 'var(--zm-text-primary)' }}>禅道 API（用于写入报工等）</Text>}
           style={cardStyle}
-          styles={{ header: { borderBottom: '1px solid var(--zb-border-subtle)' } }}
+          styles={{ header: { borderBottom: '1px solid var(--zm-border-subtle)' } }}
           extra={
             <Button
               type="primary"
               size="small"
               onClick={handleSaveZtAPI}
               loading={savingZtAPI}
-              style={{ background: 'var(--zb-brand-gradient)', border: 'none' }}
+              style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}
             >
               保存
             </Button>
@@ -137,7 +137,7 @@ const BusinessConfigPage: React.FC = () => {
               <Col span={12}>
                 <Form.Item
                   name="zt_base_url"
-                  label={<Text style={{ color: 'var(--zb-text-secondary)' }}>Base URL</Text>}
+                  label={<Text style={{ color: 'var(--zm-text-secondary)' }}>Base URL</Text>}
                   rules={[{ required: true, message: '请输入禅道地址，如 https://zentao.example.com' }]}
                 >
                   <Input placeholder="https://zentao.example.com" />
@@ -146,20 +146,20 @@ const BusinessConfigPage: React.FC = () => {
               <Col span={12}>
                 <Form.Item
                   name="zt_login_url"
-                  label={<Text style={{ color: 'var(--zb-text-secondary)' }}>登录 URL</Text>}
+                  label={<Text style={{ color: 'var(--zm-text-secondary)' }}>登录 URL</Text>}
                   rules={[{ required: true, message: '请输入禅道登录地址，如 https://.../user-login.html' }]}
                 >
                   <Input placeholder="https://zentao.example.com/user-login.html" />
                 </Form.Item>
               </Col>
             </Row>
-            <Text style={{ color: 'var(--zb-text-muted)', fontSize: 12 }}>
+            <Text style={{ color: 'var(--zm-text-muted)', fontSize: 12 }}>
               Base URL 用于后续接口回写；登录 URL 用于“方案1：登录换会话”的授权（例如你们现在的 `/user-login-xxx.html`）。
             </Text>
           </Form>
         </Card>
 
-        <Divider style={{ borderColor: 'var(--zb-border-subtle)' }} />
+        <Divider style={{ borderColor: 'var(--zm-border-subtle)' }} />
 
         <ZentaoEffortProbeCard />
       </Spin>

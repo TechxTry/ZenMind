@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"zenboard/internal/config"
-	"zenboard/internal/db"
+	"zenmind/internal/config"
+	"zenmind/internal/db"
 
 	"github.com/gin-gonic/gin"
 )

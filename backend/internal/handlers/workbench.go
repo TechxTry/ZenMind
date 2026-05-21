@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"zenboard/internal/db"
-	"zenboard/internal/models"
+	"zenmind/internal/db"
+	"zenmind/internal/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -235,6 +235,9 @@ func ListTasks(c *gin.Context) {
 	if productID > 0 {
 		query = query.Where("story_id IN (SELECT id FROM local_stories WHERE deleted = false AND product_id = ?)", productID)
 	}
+	if recordID := int64(queryInt(c, "id")); recordID > 0 {
+		query = query.Where("id = ?", recordID)
+	}
 
 	var total int64
 	query.Count(&total)
@@ -308,6 +311,9 @@ func ListStories(c *gin.Context) {
 	}
 	if productID > 0 {
 		query = query.Where("product_id = ?", productID)
+	}
+	if recordID := int64(queryInt(c, "id")); recordID > 0 {
+		query = query.Where("id = ?", recordID)
 	}
 
 	var total int64
@@ -388,6 +394,9 @@ func ListBugs(c *gin.Context) {
 	if productID > 0 {
 		query = query.Where("story_id IN (SELECT id FROM local_stories WHERE deleted = false AND product_id = ?)", productID)
 	}
+	if recordID := int64(queryInt(c, "id")); recordID > 0 {
+		query = query.Where("id = ?", recordID)
+	}
 
 	var total int64
 	query.Count(&total)
@@ -459,6 +468,9 @@ func ListEfforts(c *gin.Context) {
 
 	query := db.PG.Model(&models.LocalEffort{}).Where("deleted = false").
 		Where("work_date BETWEEN ? AND ?", dateFrom, dateTo)
+	if recordID := int64(queryInt(c, "id")); recordID > 0 {
+		query = query.Where("id = ?", recordID)
+	}
 
 	if accounts, showNone := groupFilter(groupID); showNone {
 		query = query.Where("1 = 0")

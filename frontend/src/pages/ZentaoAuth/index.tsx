@@ -146,16 +146,16 @@ const ZentaoAuthPage: React.FC = () => {
   }
 
   const cardStyle = {
-    background: 'var(--zb-bg-surface)',
-    border: '1px solid var(--zb-border-subtle)',
+    background: 'var(--zm-bg-surface)',
+    border: '1px solid var(--zm-border-subtle)',
     borderRadius: 12,
     maxWidth: 720,
   }
 
   return (
     <div>
-      <Title level={4} style={{ color: 'var(--zb-text-primary)', marginBottom: 12 }}>禅道授权（登录换会话）</Title>
-      <Text style={{ color: 'var(--zb-text-muted)' }}>
+      <Title level={4} style={{ color: 'var(--zm-text-primary)', marginBottom: 12 }}>禅道授权（登录换会话）</Title>
+      <Text style={{ color: 'var(--zm-text-muted)' }}>
         用于后续“报工写入”等操作，以当前禅道账号身份调用接口。密码在库中加密保存，并用于刷新 Redis 中的短期登录会话。
       </Text>
 
@@ -168,11 +168,11 @@ const ZentaoAuthPage: React.FC = () => {
           message="当前登录 URL"
           description={
             <div>
-              <Text style={{ color: 'var(--zb-text-muted)' }}>{loginURL}</Text>
+              <Text style={{ color: 'var(--zm-text-muted)' }}>{loginURL}</Text>
               <div style={{ height: 8 }} />
               <Space>
                 <Button type="primary" onClick={openZentaoLogin}
-                  style={{ background: 'var(--zb-brand-gradient)', border: 'none' }}>
+                  style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}>
                   打开禅道登录页
                 </Button>
               </Space>
@@ -185,22 +185,22 @@ const ZentaoAuthPage: React.FC = () => {
           type="warning"
           showIcon
           message="尚未配置登录 URL"
-          description={<Text style={{ color: 'var(--zb-text-muted)' }}>请先到「业务配置」里配置禅道登录 URL。</Text>}
+          description={<Text style={{ color: 'var(--zm-text-muted)' }}>请先到「业务配置」里配置禅道登录 URL。</Text>}
           style={{ marginBottom: 16, maxWidth: 720 }}
         />
       )}
 
       <Card
-        title={<Text style={{ color: 'var(--zb-text-primary)' }}>禅道密码与会话</Text>}
+        title={<Text style={{ color: 'var(--zm-text-primary)' }}>禅道密码与会话</Text>}
         style={cardStyle}
-        styles={{ header: { borderBottom: '1px solid var(--zb-border-subtle)' } }}
+        styles={{ header: { borderBottom: '1px solid var(--zm-border-subtle)' } }}
         extra={
           <Space>
             <Button onClick={refreshStatus}>刷新状态</Button>
             <Button danger onClick={handleClear}>清除绑定</Button>
             <Button onClick={handleTest} loading={testing} disabled={!requiredAccount}>测试连通性</Button>
             <Button type="primary" onClick={handleBind} loading={binding} disabled={!requiredAccount}
-              style={{ background: 'var(--zb-brand-gradient)', border: 'none' }}>
+              style={{ background: 'var(--zm-brand-gradient)', border: 'none' }}>
               保存授权
             </Button>
           </Space>
@@ -216,7 +216,7 @@ const ZentaoAuthPage: React.FC = () => {
               description="禅道登录账号由「账号管理」中的绑定决定，任何角色均不能在本页修改。请先在账号管理中完成绑定后再输入密码授权。"
             />
           ) : null}
-          <Text style={{ color: 'var(--zb-text-secondary)' }}>
+          <Text style={{ color: 'var(--zm-text-secondary)' }}>
             当前状态：
             {bound == null
               ? '未知'
@@ -228,19 +228,19 @@ const ZentaoAuthPage: React.FC = () => {
             {redisUnavailable ? '；Redis 不可用，无法维护会话' : ''}
           </Text>
           {savedAccount ? (
-            <Text style={{ color: 'var(--zb-text-muted)', marginLeft: 12 }}>
+            <Text style={{ color: 'var(--zm-text-muted)', marginLeft: 12 }}>
               已保存账号：{savedAccount}
             </Text>
           ) : null}
           {requiredAccount ? (
-            <Text style={{ color: 'var(--zb-text-muted)', marginLeft: 12 }}>
+            <Text style={{ color: 'var(--zm-text-muted)', marginLeft: 12 }}>
               绑定账号：{requiredAccount}（仅在账号管理中修改）
             </Text>
           ) : null}
         </div>
         <Form form={form} layout="vertical">
           <div style={{ marginBottom: 16 }}>
-            <Text style={{ color: 'var(--zb-text-secondary)', display: 'block', marginBottom: 8 }}>禅道账号</Text>
+            <Text style={{ color: 'var(--zm-text-secondary)', display: 'block', marginBottom: 8 }}>禅道账号</Text>
             <Input
               value={requiredAccount || ''}
               placeholder={requiredAccount ? undefined : '未绑定'}
@@ -251,11 +251,11 @@ const ZentaoAuthPage: React.FC = () => {
           </div>
           <Form.Item
             name="password"
-            label={<Text style={{ color: 'var(--zb-text-secondary)' }}>禅道密码</Text>}
+            label={<Text style={{ color: 'var(--zm-text-secondary)' }}>禅道密码</Text>}
             extra={
               canUseSavedCredential
-                ? <Text style={{ color: 'var(--zb-text-muted)' }}>已保存密码：无需重复输入；如需覆盖为新密码，直接输入后点「保存授权」。</Text>
-                : <Text style={{ color: 'var(--zb-text-muted)' }}>密码将加密保存，用于后续自动换取 Token 与重建会话。登录所用账号始终为上方绑定账号。</Text>
+                ? <Text style={{ color: 'var(--zm-text-muted)' }}>已保存密码：无需重复输入；如需覆盖为新密码，直接输入后点「保存授权」。</Text>
+                : <Text style={{ color: 'var(--zm-text-muted)' }}>密码将加密保存，用于后续自动换取 Token 与重建会话。登录所用账号始终为上方绑定账号。</Text>
             }
             rules={[
               {
