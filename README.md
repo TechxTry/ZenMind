@@ -17,39 +17,64 @@
 
 ## 使用 Docker 部署（推荐）
 
-本机安装 **Docker**（含 Compose 插件）即可，无需单独装 PostgreSQL、Go 或 Node。
+本机只需安装 **Docker**（含 Compose 插件）。**不必**安装 PostgreSQL、Go 或 Node，也**不必**拉取整仓源码来编译——默认从 [Docker Hub](https://hub.docker.com/u/techxtry) 拉取预构建镜像（`zenmind-backend` / `zenmind-frontend`，命名空间默认 `techxtry`，标签默认 `latest`；可用环境变量 **`DOCKERHUB_NAMESPACE`**、**`ZENMIND_IMAGE_TAG`** 覆盖）。
+
+### 最快上手（仅编排文件）
+
+在任意空目录执行（从 GitHub 下载 `docker-compose.yml` 与 `.env.example` 即可）：
 
 ```bash
-git clone <本仓库地址>
-cd ZenMind
+mkdir zenmind && cd zenmind
+
+curl -fsSLO https://raw.githubusercontent.com/TechxTry/ZenMind/main/docker-compose.yml
+curl -fsSLO https://raw.githubusercontent.com/TechxTry/ZenMind/main/.env.example
 cp .env.example .env
 ```
 
 编辑 `.env`，至少修改 **`JWT_SECRET`**、**`ADMIN_PASS`**。禅道 MySQL 可在启动后于 Web「系统配置」中填写。
-
-**默认使用 [Docker Hub](https://hub.docker.com/u/techxtry) 上的预构建镜像**（命名空间默认 `techxtry`，镜像 `zenmind-backend` / `zenmind-frontend`，标签默认 `latest`，可用 **`DOCKERHUB_NAMESPACE`**、**`ZENMIND_IMAGE_TAG`** 覆盖）：
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-浏览器访问 **`http://localhost:2024`**。改端口可在 `.env` 中设 `WEB_PORT`，再执行一次 `docker compose up -d`。
+浏览器访问 **`http://localhost:2024`**。改对外端口：在 `.env` 中设置 `WEB_PORT`，再执行 `docker compose up -d`。
 
-**从源码本地构建**（改前后端代码或调试 Dockerfile 时用）：
+### 使用 Git 克隆（便于跟进编排变更）
+
+若希望用 `git pull` 同步 `docker-compose.yml` 等文件的更新，可克隆仓库后同样只需根目录下的编排与环境变量：
 
 ```bash
+git clone https://github.com/TechxTry/ZenMind.git
+cd ZenMind
+cp .env.example .env
+# 编辑 .env 后：
+docker compose pull && docker compose up -d
+```
+
+首次登录使用 `.env` 中的 **`ADMIN_USER`** / **`ADMIN_PASS`**（用户名未改时默认为 `admin`），再在 Web 端创建系统用户并配置禅道绑定、项目组等。PostgreSQL / Redis / 后端仅在容器网络内访问，对外只暴露前端端口。
+
+数据库表结构由**后端镜像**在启动时自动迁移；升级时拉取新后端镜像并重启即可，无需手动执行 SQL。
+
+### 从源码本地构建
+
+仅在修改前后端代码或调试 Dockerfile 时需要整仓源码：
+
+```bash
+git clone https://github.com/TechxTry/ZenMind.git
+cd ZenMind
+cp .env.example .env
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
-PostgreSQL / Redis / 后端默认不映射到宿主机端口，仅前端对外；首次登录可使用 `.env` 中的 **`ADMIN_USER`** / **`ADMIN_PASS`**（用户名未改时默认为 `admin`），再在 Web 端创建系统用户并分配禅道绑定、项目组等配置。
-
 ### 更新
 
-已 `git clone` 的仓库：`git pull` 后若需新版镜像，执行 `docker compose pull && docker compose up -d`；若使用本地构建，则 `docker compose ... up -d --build`（命令同上，含 `docker-compose.build.yml`）。
+| 部署方式 | 操作 |
+|----------|------|
+| 仅编排目录（`curl` 下载） | 重新下载最新的 `docker-compose.yml`（若 `.env.example` 有变可对照合并），然后 `docker compose pull && docker compose up -d` |
+| 已 `git clone` | `git pull` 后执行 `docker compose pull && docker compose up -d` |
+| 本地构建 | `git pull` 后执行 `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build` |
 
-自 **ZenMind** 更名后，Docker 镜像名为 `zenmind-backend` / `zenmind-frontend`，数据库默认用户/库名为 `zenmind`。若你曾用旧名 `zenboard-*` 镜像或数据卷，需重新 `pull` 新镜像；已有 Postgres 卷可继续用（连接串与 `.env` 中 `POSTGRES_*` 需与创建卷时一致），或删卷后按 `.env.example` 重建。
-
-后端启动时会自动执行仓库内嵌的待执行数据库迁移脚本；因此升级到新版本时，**只要更新后端并重启容器 / 进程即可自动补齐 schema 变更**，无需手动逐个执行 `backend/migrations/*.sql`。
+自 **ZenMind** 更名后，镜像名为 `zenmind-backend` / `zenmind-frontend`，数据库默认用户/库名为 `zenmind`。若曾使用旧名 `zenboard-*` 镜像，请 `pull` 新镜像；已有 Postgres 数据卷可继续使用（`.env` 中 `POSTGRES_*` 须与建卷时一致）。
 
 更多说明见 [docs/技术说明.md](docs/技术说明.md)。
