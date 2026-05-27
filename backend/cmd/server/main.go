@@ -177,10 +177,10 @@ func main() {
 		api.POST("/zentao/efforts", handlers.CreateZentaoEffort)
 	}
 
-	// MCP server (JSON-RPC 2.0 over HTTP, JWT auth)
+	// MCP server (JSON-RPC 2.0 over HTTP; under /api so Nginx can proxy it)
 	mcpSrv := mcp.NewDefaultServer()
-	mcpSrv.RegisterRoutes(r.Group("/mcp"))
-	log.Printf("[main] MCP server registered at /mcp")
+	mcpSrv.RegisterRoutes(r.Group("/api/mcp"))
+	log.Printf("[main] MCP server registered at /api/mcp")
 
 	log.Printf("[main] ZenMind backend listening on :%s", config.Global.Port)
 	if err := r.Run(":" + config.Global.Port); err != nil {
