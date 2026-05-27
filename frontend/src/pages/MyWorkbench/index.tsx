@@ -3,6 +3,7 @@ import {
   Alert,
   Button,
   Card,
+  Collapse,
   DatePicker,
   Divider,
   Drawer,
@@ -64,6 +65,9 @@ type TaskRow = {
   estimate?: number
   consumed?: number
   assigned_to?: string
+  assigned_date?: string
+  started_date?: string
+  deadline_date?: string
   last_edited_date?: string
 }
 
@@ -212,6 +216,30 @@ const MyWorkbenchPage: React.FC = () => {
     if (!Number.isFinite(tid) || tid <= 0) return null
     return tasks.find((t) => t.id === tid) ?? null
   }, [watchedTaskId, tasks])
+
+  const selectedTaskRemainingHours = useMemo(() => {
+    if (!selectedQuickTask) return 0
+    const estimate = Number(selectedQuickTask.estimate ?? 0)
+    const consumed = Number(selectedQuickTask.consumed ?? 0)
+    if (!Number.isFinite(estimate) || !Number.isFinite(consumed)) return 0
+    return Math.max(0, estimate - consumed)
+  }, [selectedQuickTask])
+
+  const selectedTaskDelayDays = useMemo(() => {
+    if (!selectedQuickTask?.deadline_date) return 0
+    const deadline = dayjs(selectedQuickTask.deadline_date).startOf('day')
+    if (!deadline.isValid()) return 0
+    const todayDay = dayjs().startOf('day')
+    const diff = todayDay.diff(deadline, 'day')
+    return diff > 0 ? diff : 0
+  }, [selectedQuickTask])
+
+  const formatTaskDate = useCallback((v?: string) => {
+    if (!v) return '-'
+    const d = dayjs(v)
+    if (!d.isValid()) return '-'
+    return d.format('YYYY-MM-DD')
+  }, [])
 
   // 计算"剩余(h)"：标准工时 - 本次consumed - 今天已报工；下限为 0，并四舍五入到 0.5。
   const computedLeft = useMemo(() => {
@@ -626,6 +654,9 @@ const MyWorkbenchPage: React.FC = () => {
         showEffortErrorModal(r)
       } else {
         message.success('已提交到禅道')
+        // 报工成功后任务状态通常会流转到进行中，主动切换页签避免“数据已切换但激活标签未变”。
+        setStatus('doing')
+        setTasksPage(1)
         applyOptimisticEffort(payload, typeof r?.effort_id === 'number' ? r.effort_id : undefined)
         setDrawerOpen(false)
         void refreshAfterEffortSubmit(bindingAccount, tasksPage, tasksPageSize)
@@ -1249,6 +1280,72 @@ const MyWorkbenchPage: React.FC = () => {
               }}
             />
           </Form.Item>
+          {selectedQuickTask ? (
+            <div style={{ marginTop: -2, marginBottom: 12 }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 8,
+                  background: 'var(--zm-bg-elevated)',
+                  border: '1px solid var(--zm-border-subtle)',
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                }}
+              >
+                <Text style={{ fontSize: 12, color: 'var(--zm-text-muted)' }}>
+                  总计消耗 <b style={{ color: 'var(--zm-text-primary)' }}>{Number(selectedQuickTask.consumed ?? 0).toFixed(1)}工时</b>
+                </Text>
+                <Text style={{ fontSize: 12, color: 'var(--zm-text-muted)' }}>
+                  预计剩余 <b style={{ color: 'var(--zm-text-primary)' }}>{selectedTaskRemainingHours.toFixed(1)}工时</b>
+                </Text>
+              </div>
+              <Collapse
+                size="small"
+                ghost
+                style={{ marginTop: 6 }}
+                items={[
+                  {
+                    key: 'task-hours-detail',
+                    label: <Text style={{ fontSize: 12 }}>展开查看任务工时全部信息</Text>,
+                    children: (
+                      <div style={{ display: 'grid', rowGap: 8 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '84px 1fr', columnGap: 8 }}>
+                          <Text style={{ color: 'var(--zm-text-muted)' }}>最新预计</Text>
+                          <Text>{Number(selectedQuickTask.estimate ?? 0).toFixed(1)}工时</Text>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '84px 1fr', columnGap: 8 }}>
+                          <Text style={{ color: 'var(--zm-text-muted)' }}>总计消耗</Text>
+                          <Text>{Number(selectedQuickTask.consumed ?? 0).toFixed(1)}工时</Text>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '84px 1fr', columnGap: 8 }}>
+                          <Text style={{ color: 'var(--zm-text-muted)' }}>预计剩余</Text>
+                          <Text>{selectedTaskRemainingHours.toFixed(1)}工时</Text>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '84px 1fr', columnGap: 8 }}>
+                          <Text style={{ color: 'var(--zm-text-muted)' }}>预计开始</Text>
+                          <Text>{formatTaskDate(selectedQuickTask.assigned_date)}</Text>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '84px 1fr', columnGap: 8 }}>
+                          <Text style={{ color: 'var(--zm-text-muted)' }}>实际开始</Text>
+                          <Text>{formatTaskDate(selectedQuickTask.started_date)}</Text>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '84px 1fr', columnGap: 8 }}>
+                          <Text style={{ color: 'var(--zm-text-muted)' }}>截止日期</Text>
+                          <Text>
+                            {formatTaskDate(selectedQuickTask.deadline_date)}
+                            {selectedTaskDelayDays > 0 ? (
+                              <Text style={{ color: '#f5222d', marginLeft: 8 }}>延期{selectedTaskDelayDays}天</Text>
+                            ) : null}
+                          </Text>
+                        </div>
+                      </div>
+                    ),
+                  },
+                ]}
+              />
+            </div>
+          ) : null}
           <Form.Item name="work_date" label="日期">
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>

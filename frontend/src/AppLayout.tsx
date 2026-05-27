@@ -49,6 +49,7 @@ const AppLayout: React.FC = () => {
     if (p.startsWith('/analytics/team-health')) return '/analytics/team-health'
     if (p.startsWith('/my-workbench')) return '/my-workbench'
     if (p.startsWith('/calendar-accounts')) return '/calendar-accounts'
+    if (p.startsWith('/mcp-access')) return '/mcp-access'
     if (p.startsWith('/zentao-auth')) return '/zentao-auth'
     if (p.startsWith('/workbench/task/')) {
       if (from === '/my-workbench') return '/my-workbench'
@@ -98,6 +99,7 @@ const AppLayout: React.FC = () => {
           children: [
             { key: '/my-workbench', label: '我的工作台' },
             { key: '/calendar-accounts', label: '日历账户' },
+            { key: '/mcp-access', label: 'MCP 访问' },
             { key: '/zentao-auth', label: '禅道授权' },
           ],
         },

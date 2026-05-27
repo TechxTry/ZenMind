@@ -2,8 +2,6 @@ package db
 
 import (
 	"errors"
-	"strings"
-	"zenmind/internal/config"
 	"zenmind/internal/crypto"
 
 	"gorm.io/gorm"
@@ -22,16 +20,8 @@ type ZentaoCredentialRef struct {
 	ZentaoAccount string `gorm:"column:zentao_account"`
 }
 
-func credentialSecret() string {
-	// Prefer dedicated secret; fallback to JWT secret to avoid "cannot save" in dev env.
-	if strings.TrimSpace(config.Global.ZentaoCredSecret) != "" {
-		return config.Global.ZentaoCredSecret
-	}
-	return config.Global.JWTSecret
-}
-
 func UpsertZentaoCredential(username, ztAccount, plainPassword string) error {
-	enc, err := crypto.EncryptString(plainPassword, credentialSecret())
+	enc, err := crypto.EncryptString(plainPassword, AppEncryptionSecret())
 	if err != nil {
 		return err
 	}
@@ -75,7 +65,7 @@ func GetZentaoCredential(username string) (account string, plainPassword string,
 	if e != nil {
 		return "", "", false, e
 	}
-	pt, err := crypto.DecryptString(row.PasswordEnc, credentialSecret())
+	pt, err := crypto.DecryptString(row.PasswordEnc, AppEncryptionSecret())
 	if err != nil {
 		return "", "", false, err
 	}

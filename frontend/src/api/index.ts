@@ -83,6 +83,22 @@ export type CalendarAggregate = {
 export const getCalendarAggregate = (params: { date_from: string; date_to: string }) =>
   http.get<CalendarAggregate>('/me/calendar-aggregate', { params }).then((r) => r.data)
 
+export type MCPAccessToken = {
+  id: number
+  user_id: number
+  token_name: string
+  token_prefix: string
+  expires_at?: string | null
+  last_used_at?: string | null
+  created_at: string
+}
+
+export const listMyMCPTokens = () =>
+  http.get<{ data: MCPAccessToken[] }>('/me/mcp-tokens').then((r) => r.data)
+export const createMyMCPToken = (data: { name: string; expire_days?: number }) =>
+  http.post<{ id: number; token: string; token_name: string; expires_at?: string }>('/me/mcp-tokens', data).then((r) => r.data)
+export const deleteMyMCPToken = (id: number) => http.delete(`/me/mcp-tokens/${id}`).then((r) => r.data)
+
 // ---- Admin: System Users ----
 export type SystemUser = {
   id: number

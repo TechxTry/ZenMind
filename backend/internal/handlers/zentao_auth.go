@@ -221,7 +221,7 @@ func ClearZentaoAuth(c *gin.Context) {
 	_ = db.DeleteZentaoCredential(sub)
 	if redisclient.Client != nil {
 		_ = redisclient.Client.Del(c.Request.Context(), ztSessKeyPrefix+sub).Err()
-		_ = redisclient.Client.Del(c.Request.Context(), ztAPITokenKeyPrefix+sub).Err()
+		_ = redisclient.Client.Del(c.Request.Context(), zentaoauth.APITokenKeyPrefix+sub).Err()
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }

@@ -38,11 +38,45 @@ const ConfigPage: React.FC = () => {
   const [effortReconcileEnabled, setEffortReconcileEnabled] = useState(true)
   const [effortReconcileHour, setEffortReconcileHour] = useState(3)
   const [effortReconcileDays, setEffortReconcileDays] = useState(180)
+  const [passwordConfigured, setPasswordConfigured] = useState(false)
 
   useEffect(() => {
-    getDatasource().then((d: any) => form.setFieldsValue(d)).catch(() => {})
+    getDatasource()
+      .then((d: { password_configured?: boolean; host?: string; port?: string; user?: string; db_name?: string }) => {
+        setPasswordConfigured(!!d.password_configured)
+        form.setFieldsValue({
+          host: d.host,
+          port: d.port,
+          user: d.user,
+          db_name: d.db_name,
+          password: '',
+        })
+      })
+      .catch(() => {})
     fetchStatus()
   }, [])
+
+  const buildDatasourcePayload = (values: {
+    host?: string
+    port?: string
+    user?: string
+    password?: string
+    db_name?: string
+  }) => {
+    const payload: Record<string, string> = {
+      host: values.host ?? '',
+      port: values.port ?? '',
+      user: values.user ?? '',
+      db_name: values.db_name ?? '',
+    }
+    const pwd = (values.password ?? '').trim()
+    if (pwd) {
+      payload.password = pwd
+    } else if (!passwordConfigured) {
+      return null
+    }
+    return payload
+  }
 
   const fetchStatus = () => {
     setStatusLoading(true)
@@ -79,12 +113,14 @@ const ConfigPage: React.FC = () => {
 
   const handleTest = async () => {
     const values = form.getFieldsValue()
+    const payload = buildDatasourcePayload(values)
+    if (!payload) {
+      message.warning('请填写 MySQL 密码')
+      return
+    }
     setTesting(true)
     try {
-      const r = await testDatasource({
-        host: values.host, port: values.port,
-        user: values.user, password: values.password, db_name: values.db_name,
-      })
+      const r = await testDatasource(payload)
       r.ok ? message.success('连接成功 ✓') : message.error('连接失败: ' + r.error)
     } catch {
       message.error('请求失败')
@@ -95,12 +131,16 @@ const ConfigPage: React.FC = () => {
 
   const handleSave = async () => {
     const values = form.getFieldsValue()
+    const payload = buildDatasourcePayload(values)
+    if (!payload) {
+      message.warning('请填写 MySQL 密码')
+      return
+    }
     setSaving(true)
     try {
-      await putDatasource({
-        host: values.host, port: values.port,
-        user: values.user, password: values.password, db_name: values.db_name,
-      })
+      await putDatasource(payload)
+      setPasswordConfigured(true)
+      form.setFieldsValue({ password: '' })
       message.success('数据源已保存并连接')
     } catch (e: any) {
       message.error(e.response?.data?.error ?? '保存失败')
@@ -187,8 +227,21 @@ const ConfigPage: React.FC = () => {
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="password" label={<Text style={{ color: 'var(--zm-text-secondary)' }}>密码</Text>}>
-                <Input.Password placeholder="••••••••" />
+              <Form.Item
+                name="password"
+                label={<Text style={{ color: 'var(--zm-text-secondary)' }}>密码</Text>}
+                extra={
+                  passwordConfigured ? (
+                    <Text style={{ color: 'var(--zm-text-muted)', fontSize: 11 }}>
+                      已保存过密码，留空将沿用数据库中的配置（重启后仍有效）
+                    </Text>
+                  ) : undefined
+                }
+              >
+                <Input.Password
+                  placeholder={passwordConfigured ? '已配置（留空不修改）' : '••••••••'}
+                  autoComplete="new-password"
+                />
               </Form.Item>
             </Col>
             <Col span={8}>

@@ -7,6 +7,7 @@ import (
 	"zenmind/internal/config"
 	"zenmind/internal/db"
 	"zenmind/internal/handlers"
+	"zenmind/internal/mcp"
 	"zenmind/internal/redisclient"
 	"zenmind/internal/scheduler"
 
@@ -35,6 +36,9 @@ func main() {
 	config.Global.SyncIntervalMinutes = db.GetSyncIntervalMinutes()
 	config.Global.ZentaoBaseURL = db.GetZentaoBaseURL()
 	config.Global.ZentaoLoginURL = db.GetZentaoLoginURL()
+	if err := db.LoadZentaoDatasourceIntoConfig(); err != nil {
+		log.Printf("[main] zentao datasource settings load failed: %v", err)
+	}
 	log.Printf("[main] sync interval: %d min (env default + app_settings)", config.Global.SyncIntervalMinutes)
 	if config.Global.EffortReconcileEnabled {
 		log.Printf("[main] daily effort reconcile: %02d:00 local, %d days",
@@ -92,6 +96,9 @@ func main() {
 		api.GET("/me/calendar-accounts", handlers.ListMyCalendarAccounts)
 		api.POST("/me/calendar-accounts", handlers.CreateMyCalendarAccount)
 		api.DELETE("/me/calendar-accounts/:id", handlers.DeleteMyCalendarAccount)
+		api.GET("/me/mcp-tokens", handlers.ListMyMCPTokens)
+		api.POST("/me/mcp-tokens", handlers.CreateMyMCPToken)
+		api.DELETE("/me/mcp-tokens/:id", handlers.DeleteMyMCPToken)
 
 		// Admin
 		api.GET("/admin/system-users", handlers.AdminListSystemUsers)
@@ -169,6 +176,11 @@ func main() {
 		// Zentao write-back
 		api.POST("/zentao/efforts", handlers.CreateZentaoEffort)
 	}
+
+	// MCP server (JSON-RPC 2.0 over HTTP, JWT auth)
+	mcpSrv := mcp.NewDefaultServer()
+	mcpSrv.RegisterRoutes(r.Group("/mcp"))
+	log.Printf("[main] MCP server registered at /mcp")
 
 	log.Printf("[main] ZenMind backend listening on :%s", config.Global.Port)
 	if err := r.Run(":" + config.Global.Port); err != nil {

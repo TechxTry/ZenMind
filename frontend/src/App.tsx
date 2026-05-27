@@ -12,6 +12,7 @@ import TaskDetailPage from './pages/Workbench/TaskDetail'
 import ZentaoAuthPage from './pages/ZentaoAuth'
 import MyWorkbenchPage from './pages/MyWorkbench'
 import CalendarAccountsPage from './pages/MyWorkbench/CalendarAccounts'
+import McpAccessPage from './pages/MyWorkbench/McpAccess'
 import IterationDashboardPage from './pages/Analytics/IterationDashboard'
 import PeopleDashboardPage from './pages/Analytics/PeopleDashboard'
 import TeamHealthPage from './pages/Analytics/TeamHealth'
@@ -64,6 +65,7 @@ const router = createBrowserRouter([
       { path: 'groups', element: <GroupsPage /> },
       { path: 'my-workbench', element: <MyWorkbenchPage /> },
       { path: 'calendar-accounts', element: <CalendarAccountsPage /> },
+      { path: 'mcp-access', element: <McpAccessPage /> },
       { path: 'workbench', element: <WorkbenchPage /> },
       { path: 'workbench/task/:taskId', element: <TaskDetailPage /> },
       { path: 'analytics/iteration', element: <IterationDashboardPage /> },
