@@ -54,6 +54,13 @@ export const createCalendarAccount = (data: {
   password: string
   description?: string
 }) => http.post<{ id: number }>('/me/calendar-accounts', data).then((r) => r.data)
+export const testCalendarAccount = (data: {
+  type: CalendarAccountType
+  server?: string
+  username: string
+  password: string
+  description?: string
+}) => http.post<{ ok: boolean; events: number }>('/me/calendar-accounts/test', data).then((r) => r.data)
 export const deleteCalendarAccount = (id: number) => http.delete(`/me/calendar-accounts/${id}`).then((r) => r.data)
 
 export type CalendarExternalEvent = {
@@ -260,6 +267,44 @@ export const createZentaoEffort = (data: {
   consumed: number | string
   left: number | string
 }) => http.post('/zentao/efforts', data).then((r) => r.data)
+export const updateZentaoEffort = (id: number, data: {
+  work_date?: string
+  work?: string
+  consumed?: number | string
+  left?: number | string
+}) => http.patch(`/zentao/efforts/${id}`, data).then((r) => r.data)
+export const deleteZentaoEffort = (id: number) => http.delete(`/zentao/efforts/${id}`).then((r) => r.data)
+export const updateZentaoTask = (id: number, data: {
+  assigned_to?: string
+  pri?: number
+  deadline?: string
+  status?: 'wait' | 'doing' | 'done' | 'closed' | 'pause' | 'cancel'
+}) => http.patch(`/zentao/tasks/${id}`, data).then((r) => r.data)
+export const createZentaoBug = (data: {
+  title: string
+  steps?: string
+  execution_id?: number
+  project_id?: number
+  product_id?: number
+  assigned_to?: string
+  severity?: number
+  story_id?: number
+  task_id?: number
+  type?: string
+}) => http.post('/zentao/bugs', data).then((r) => r.data)
+export const updateZentaoBug = (id: number, data: {
+  title?: string
+  steps?: string
+  execution_id?: number
+  assigned_to?: string
+  severity?: number
+  status?: 'active' | 'resolved' | 'closed' | 'wait' | 'activating'
+  resolution?: string
+  story_id?: number
+  task_id?: number
+}) => http.patch(`/zentao/bugs/${id}`, data).then((r) => r.data)
+export const deleteZentaoBug = (id: number, params?: { resolution?: string }) =>
+  http.delete(`/zentao/bugs/${id}`, { params }).then((r) => r.data)
 
 // ---- Users ----
 export const listUsers = (params?: { q?: string; page?: number; page_size?: number }) =>
@@ -293,6 +338,10 @@ export type WorkbenchParams = {
   execution_id?: number
   /** 项目 ID（结构树筛选或「项目」Tab 按 ID 搜索） */
   project_id?: number
+  /** 项目集 ID（结构树筛选） */
+  program_id?: number
+  /** 产品 ID（结构树筛选） */
+  product_id?: number
   /** 仅报工：筛选关联到指定任务 ID 的报工（object_type=task） */
   task_id?: number
   date_from?: string
@@ -401,3 +450,7 @@ export const getPeopleBottleneck = (params: PeopleAnalyticsParams) =>
 export const triggerSync = () => http.post('/sync/trigger').then((r) => r.data)
 export const triggerEffortReconcile = () => http.post('/sync/effort-reconcile').then((r) => r.data)
 export const getSyncStatus = () => http.get('/sync/status').then((r) => r.data)
+export const getSyncActive = () =>
+  http.get<{ running: { kind: string; label: string; started_at: string }[]; busy: boolean }>('/sync/active').then((r) => r.data)
+export const getSyncLogs = (params?: { page?: number; page_size?: number }) =>
+  http.get('/sync/logs', { params }).then((r) => r.data)

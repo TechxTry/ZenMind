@@ -4,7 +4,16 @@ package mcp
 func NewDefaultServer() *Server {
 	reg := NewRegistry()
 	reg.Register(CreateEffortTool{})
+	reg.Register(CreateTaskTool{})
+	reg.Register(UpdateEffortTool{})
+	reg.Register(DeleteEffortTool{})
+	reg.Register(UpdateTaskTool{})
+	reg.Register(CreateBugTool{})
+	reg.Register(UpdateBugTool{})
+	reg.Register(DeleteBugTool{})
 	reg.Register(ListMyTasksTool{})
+	reg.Register(ListMyBugsTool{})
+	reg.Register(ListMyExecutionsTool{})
 	reg.Register(ListMyEffortsTool{})
 	return NewServer(reg)
 }

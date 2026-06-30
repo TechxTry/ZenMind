@@ -48,6 +48,7 @@ const AppLayout: React.FC = () => {
     if (p.startsWith('/analytics/people')) return '/analytics/people'
     if (p.startsWith('/analytics/team-health')) return '/analytics/team-health'
     if (p.startsWith('/my-workbench')) return '/my-workbench'
+    if (p.startsWith('/my-bugs')) return '/my-bugs'
     if (p.startsWith('/calendar-accounts')) return '/calendar-accounts'
     if (p.startsWith('/mcp-access')) return '/mcp-access'
     if (p.startsWith('/zentao-auth')) return '/zentao-auth'
@@ -68,7 +69,9 @@ const AppLayout: React.FC = () => {
     if (selectedKey.startsWith('/analytics')) return 'menu_analytics'
     if (
       selectedKey.startsWith('/my-workbench')
+      || selectedKey.startsWith('/my-bugs')
       || selectedKey.startsWith('/calendar-accounts')
+      || selectedKey.startsWith('/mcp-access')
       || selectedKey.startsWith('/zentao-auth')
     ) return 'menu_personal'
     const role = (me?.user?.role ?? '').toLowerCase()
@@ -98,6 +101,7 @@ const AppLayout: React.FC = () => {
           label: '个人工作台',
           children: [
             { key: '/my-workbench', label: '我的工作台' },
+            { key: '/my-bugs', label: '我的Bug' },
             { key: '/calendar-accounts', label: '日历账户' },
             { key: '/mcp-access', label: 'MCP 访问' },
             { key: '/zentao-auth', label: '禅道授权' },

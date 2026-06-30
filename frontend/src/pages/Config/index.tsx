@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { Card, Form, Input, Button, Row, Col, message, Space, Typography,
-  Divider, Badge, Statistic, Spin, InputNumber } from 'antd'
+  Divider, Badge, Statistic, Spin, InputNumber, Table, Tag, Alert } from 'antd'
 import { CheckCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import { getDatasource, putDatasource, testDatasource, triggerSync, triggerEffortReconcile,
-  getSyncStatus, getLocalStats, getSyncSettings, putSyncSettings } from '../../api'
+  getSyncStatus, getSyncActive, getSyncLogs, getLocalStats, getSyncSettings, putSyncSettings } from '../../api'
 import dayjs from 'dayjs'
 
 const { Title, Text } = Typography
@@ -12,6 +12,19 @@ interface SyncInfo {
   watermark: string
   last_count: number
   updated_at: string
+}
+
+interface SyncLogRow {
+  id: number
+  display_name: string
+  status_label: string
+  status: string
+  message?: string
+  actor_username?: string
+  metadata?: { days?: number; upserted?: number }
+  started_at: string
+  finished_at?: string
+  duration_ms?: number
 }
 
 const TABLE_LABELS: Record<string, string> = {
@@ -39,6 +52,10 @@ const ConfigPage: React.FC = () => {
   const [effortReconcileHour, setEffortReconcileHour] = useState(3)
   const [effortReconcileDays, setEffortReconcileDays] = useState(180)
   const [passwordConfigured, setPasswordConfigured] = useState(false)
+  const [syncLogs, setSyncLogs] = useState<SyncLogRow[]>([])
+  const [syncLogsTotal, setSyncLogsTotal] = useState(0)
+  const [syncLogsPage, setSyncLogsPage] = useState(1)
+  const [activeRuns, setActiveRuns] = useState<{ kind: string; label: string; started_at: string }[]>([])
 
   useEffect(() => {
     getDatasource()
@@ -89,8 +106,10 @@ const ConfigPage: React.FC = () => {
         effort_reconcile_hour?: number
         effort_reconcile_days?: number
       }) => d),
+      getSyncLogs({ page: syncLogsPage, page_size: 15 }).then((d: { data: SyncLogRow[]; total: number }) => d),
+      getSyncActive().catch(() => ({ running: [], busy: false })),
     ])
-      .then(([tables, stats, sync]) => {
+      .then(([tables, stats, sync, logs, active]) => {
         setSyncStatus(tables)
         setLocalCounts(stats.tables ?? {})
         setLocalTotal(stats.total ?? 0)
@@ -106,6 +125,9 @@ const ConfigPage: React.FC = () => {
         if (typeof sync?.effort_reconcile_days === 'number') {
           setEffortReconcileDays(sync.effort_reconcile_days)
         }
+        setSyncLogs(logs?.data ?? [])
+        setSyncLogsTotal(logs?.total ?? 0)
+        setActiveRuns(active?.running ?? [])
       })
       .catch(() => {})
       .finally(() => setStatusLoading(false))
@@ -153,7 +175,7 @@ const ConfigPage: React.FC = () => {
     setSyncing(true)
     try {
       await triggerSync()
-      message.success('同步任务已触发，请稍后刷新状态')
+      message.success('增量同步已触发，请稍后刷新状态与日志')
       setTimeout(fetchStatus, 3000)
     } catch (e: any) {
       message.error(e.response?.data?.error ?? '触发失败')
@@ -166,13 +188,13 @@ const ConfigPage: React.FC = () => {
     setReconciling(true)
     try {
       await triggerEffortReconcile()
-      message.success('报工日对账已触发，请稍后刷新状态')
+      message.success('报工回刷已触发，请稍后刷新状态与日志')
       setTimeout(fetchStatus, 5000)
     } catch (e: any) {
       const err = e.response?.data?.error
       const running = e.response?.data?.running
       if (e.response?.status === 409 && running) {
-        message.warning(`当前有同步任务进行中（${running}），请稍后再试`)
+        message.warning('回刷报工正在执行中，请等其完成后再试')
       } else {
         message.error(err ?? '触发失败')
       }
@@ -312,6 +334,27 @@ const ConfigPage: React.FC = () => {
 
       <Divider style={{ borderColor: 'var(--zm-border-subtle)' }} />
 
+      {activeRuns.length > 0 && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="当前有同步任务在执行"
+          description={
+            <Space direction="vertical" size={4}>
+              {activeRuns.map((r) => (
+                <Text key={r.kind} style={{ fontSize: 12 }}>
+                  {r.label}：自 {dayjs(r.started_at).format('MM-DD HH:mm:ss')} 起
+                  {r.kind === 'incremental' && (
+                    <Text type="secondary">（可与「回刷报工」同时进行）</Text>
+                  )}
+                </Text>
+              ))}
+            </Space>
+          }
+        />
+      )}
+
       {/* Sync Status */}
       <Card
         title={<Text style={{ color: 'var(--zm-text-primary)' }}>同步状态</Text>}
@@ -329,8 +372,9 @@ const ConfigPage: React.FC = () => {
               onClick={handleEffortReconcile}
               loading={reconciling}
               disabled={!effortReconcileEnabled}
+              title="从禅道 MySQL 回刷近期报工，用于对齐在禅道里改过的工时"
             >
-              报工日对账
+              回刷报工
             </Button>
           </Space>
         }
@@ -357,10 +401,10 @@ const ConfigPage: React.FC = () => {
           <div style={{
             marginBottom: 20, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12,
           }}>
-            <Text style={{ color: 'var(--zm-text-secondary)', fontSize: 13 }}>报工日对账</Text>
+            <Text style={{ color: 'var(--zm-text-secondary)', fontSize: 13 }}>报工回刷</Text>
             <Text style={{ color: 'var(--zm-text-muted)', fontSize: 11 }}>
               {effortReconcileEnabled
-                ? `每天 ${String(effortReconcileHour).padStart(2, '0')}:00 自动执行；手动触发将回刷近 ${effortReconcileDays} 天报工（与增量同步互斥）`
+                ? `每天 ${String(effortReconcileHour).padStart(2, '0')}:00 自动从禅道对齐近 ${effortReconcileDays} 天报工；手动「回刷报工」可与增量同步同时进行`
                 : '已在环境变量中关闭（EFFORT_RECONCILE_ENABLED=false）'}
             </Text>
           </div>
@@ -405,6 +449,103 @@ const ConfigPage: React.FC = () => {
             })}
           </Row>
         </Spin>
+      </Card>
+
+      <Divider style={{ borderColor: 'var(--zm-border-subtle)' }} />
+
+      <Card
+        title={<Text style={{ color: 'var(--zm-text-primary)' }}>同步日志</Text>}
+        style={cardStyle}
+        styles={{ header: { borderBottom: '1px solid var(--zm-border-subtle)' } }}
+        extra={
+          <Text style={{ color: 'var(--zm-text-muted)', fontSize: 12 }}>
+            自动增量同步、手动同步、报工回刷的执行记录
+          </Text>
+        }
+      >
+        <Table<SyncLogRow>
+          size="small"
+          rowKey="id"
+          loading={statusLoading}
+          dataSource={syncLogs}
+          pagination={{
+            current: syncLogsPage,
+            pageSize: 15,
+            total: syncLogsTotal,
+            showSizeChanger: false,
+            onChange: (p) => {
+              setSyncLogsPage(p)
+              setStatusLoading(true)
+              getSyncLogs({ page: p, page_size: 15 })
+                .then((d: { data: SyncLogRow[]; total: number }) => {
+                  setSyncLogs(d?.data ?? [])
+                  setSyncLogsTotal(d?.total ?? 0)
+                })
+                .catch(() => {})
+                .finally(() => setStatusLoading(false))
+            },
+          }}
+          columns={[
+            {
+              title: '任务',
+              dataIndex: 'display_name',
+              width: 140,
+            },
+            {
+              title: '状态',
+              dataIndex: 'status_label',
+              width: 88,
+              render: (label: string, row) => {
+                const color =
+                  row.status === 'success' ? 'success'
+                    : row.status === 'running' ? 'processing'
+                      : row.status === 'skipped' ? 'warning'
+                        : row.status === 'failed' ? 'error'
+                          : 'default'
+                return <Tag color={color}>{label}</Tag>
+              },
+            },
+            {
+              title: '开始时间',
+              dataIndex: 'started_at',
+              width: 130,
+              render: (v: string) => dayjs(v).format('YYYY-MM-DD HH:mm:ss'),
+            },
+            {
+              title: '耗时',
+              dataIndex: 'duration_ms',
+              width: 72,
+              render: (ms: number | undefined, row: SyncLogRow) => {
+                if (row.status === 'running') return '—'
+                if (ms == null) return '—'
+                if (ms < 1000) return `${ms} ms`
+                return `${(ms / 1000).toFixed(1)} s`
+              },
+            },
+            {
+              title: '操作人',
+              dataIndex: 'actor_username',
+              width: 100,
+              render: (v?: string) => v || '—',
+            },
+            {
+              title: '说明',
+              dataIndex: 'message',
+              ellipsis: true,
+              render: (msg: string | undefined, row) => {
+                const parts: string[] = []
+                if (msg) parts.push(msg)
+                if (row.metadata?.upserted != null) {
+                  parts.push(`写入 ${row.metadata.upserted} 条`)
+                }
+                if (row.metadata?.days != null) {
+                  parts.push(`窗口 ${row.metadata.days} 天`)
+                }
+                return parts.join(' · ') || '—'
+              },
+            },
+          ]}
+        />
       </Card>
     </div>
   )

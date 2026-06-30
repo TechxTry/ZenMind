@@ -327,8 +327,8 @@ func tryWebformPath(c *gin.Context, ctx context.Context, sub, baseURL string, ta
 	}, taskID, workDate, work, consumedF)
 }
 
-// submitViaWebform：保留给开源禅道 ≤12 的 form POST 路径。
-func submitViaWebform(ctx context.Context, sub, baseURL string, taskID int64, workDate, work, consumed, left string) (*zentao.CreateEffortResult, error) {
+// loadZentaoSessionCookies returns cookies saved by 「禅道授权」 bind.
+func loadZentaoSessionCookies(ctx context.Context, sub string) ([]*http.Cookie, error) {
 	if err := ensureRedis(ctx); err != nil {
 		return nil, fmt.Errorf("redis unavailable: %w", err)
 	}
@@ -340,6 +340,15 @@ func submitViaWebform(ctx context.Context, sub, baseURL string, taskID int64, wo
 	var cookies []*http.Cookie
 	if err := json.Unmarshal([]byte(raw), &cookies); err != nil {
 		return nil, fmt.Errorf("invalid session cookie payload: %w", err)
+	}
+	return cookies, nil
+}
+
+// submitViaWebform：保留给开源禅道 ≤12 的 form POST 路径。
+func submitViaWebform(ctx context.Context, sub, baseURL string, taskID int64, workDate, work, consumed, left string) (*zentao.CreateEffortResult, error) {
+	cookies, err := loadZentaoSessionCookies(ctx, sub)
+	if err != nil {
+		return nil, err
 	}
 	return zentao.CreateTaskEffortByWebForm(ctx, baseURL, cookies, zentao.CreateTaskEffortInput{
 		TaskID:   taskID,

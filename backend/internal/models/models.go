@@ -297,3 +297,21 @@ type AuditLog struct {
 }
 
 func (AuditLog) TableName() string { return "audit_logs" }
+
+// SyncRunLog records each ETL or effort-reconcile execution.
+type SyncRunLog struct {
+	ID            int64      `json:"id" gorm:"primaryKey;column:id"`
+	JobType       string     `json:"job_type" gorm:"column:job_type"`
+	TriggerSource string     `json:"trigger_source" gorm:"column:trigger_source"`
+	Status        string     `json:"status" gorm:"column:status"`
+	Message       string     `json:"message,omitempty" gorm:"column:message"`
+	ActorUsername string     `json:"actor_username,omitempty" gorm:"column:actor_username"`
+	Metadata      JSONB      `json:"metadata,omitempty" gorm:"column:metadata;type:jsonb"`
+	StartedAt     time.Time  `json:"started_at" gorm:"column:started_at"`
+	FinishedAt    *time.Time `json:"finished_at,omitempty" gorm:"column:finished_at"`
+	DurationMs    *int64     `json:"duration_ms,omitempty" gorm:"column:duration_ms"`
+	DisplayName   string     `json:"display_name" gorm:"-"`
+	StatusLabel   string     `json:"status_label" gorm:"-"`
+}
+
+func (SyncRunLog) TableName() string { return "sync_run_logs" }

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"zenmind/internal/db"
 	"zenmind/internal/extcal"
@@ -14,6 +15,7 @@ import (
 )
 
 const maxCalendarAggregateDays = 120
+const maxExternalCalendarFetchConcurrency = 4
 
 func calendarTimeOK(t *time.Time) bool {
 	if t == nil || t.IsZero() || t.Year() <= 1 {
@@ -317,38 +319,53 @@ func GetMyCalendarAggregate(c *gin.Context) {
 		})
 	}
 
-	for _, f := range feeds {
-		body, err := extcal.FetchICS(ctx, f.ICalURL)
-		if err != nil {
-			feedErrors = append(feedErrors, gin.H{"feed_id": f.ID, "feed_name": f.Name, "error": err.Error()})
-			continue
-		}
-		parsed, err := extcal.EventsInWindow(body, dateFrom, dateTo)
-		if err != nil {
-			feedErrors = append(feedErrors, gin.H{"feed_id": f.ID, "feed_name": f.Name, "error": err.Error()})
-			continue
-		}
-		col := f.Color
-		if strings.TrimSpace(col) == "" {
-			col = "#6366F1"
-		}
-		for _, ev := range parsed {
-			external = append(external, extItem{
-				SourceType: "feed",
-				SourceID:   f.ID,
-				SourceName: f.Name,
-				Title:      ev.Title,
-				Start:      ev.Start.Format(time.RFC3339),
-				End:        ev.End.Format(time.RFC3339),
-				AllDay:     ev.AllDay,
-				Color:      col,
-			})
-		}
+	accounts, err := db.ListUserCalendarAccountsForFetch(cu.User.ID)
+	if err != nil {
+		accountErrors = append(accountErrors, gin.H{"account_id": 0, "type": "accounts", "username": "日历账户", "error": err.Error()})
+		accounts = nil
 	}
 
-	accounts, err := db.ListUserCalendarAccountsForFetch(cu.User.ID)
-	if err == nil {
-		for _, a := range accounts {
+	type fetchResult struct {
+		external      []extItem
+		feedErrors    []gin.H
+		accountErrors []gin.H
+	}
+
+	jobs := make([]func() fetchResult, 0, len(feeds)+len(accounts))
+	for _, f := range feeds {
+		f := f
+		jobs = append(jobs, func() fetchResult {
+			body, err := extcal.FetchICS(ctx, f.ICalURL)
+			if err != nil {
+				return fetchResult{feedErrors: []gin.H{{"feed_id": f.ID, "feed_name": f.Name, "error": err.Error()}}}
+			}
+			parsed, err := extcal.EventsInWindow(body, dateFrom, dateTo)
+			if err != nil {
+				return fetchResult{feedErrors: []gin.H{{"feed_id": f.ID, "feed_name": f.Name, "error": err.Error()}}}
+			}
+			col := f.Color
+			if strings.TrimSpace(col) == "" {
+				col = "#6366F1"
+			}
+			items := make([]extItem, 0, len(parsed))
+			for _, ev := range parsed {
+				items = append(items, extItem{
+					SourceType: "feed",
+					SourceID:   f.ID,
+					SourceName: f.Name,
+					Title:      ev.Title,
+					Start:      ev.Start.Format(time.RFC3339),
+					End:        ev.End.Format(time.RFC3339),
+					AllDay:     ev.AllDay,
+					Color:      col,
+				})
+			}
+			return fetchResult{external: items}
+		})
+	}
+	for _, a := range accounts {
+		a := a
+		jobs = append(jobs, func() fetchResult {
 			var parsed []extcal.ParsedEvent
 			var e error
 			switch strings.ToLower(strings.TrimSpace(a.Type)) {
@@ -357,11 +374,10 @@ func GetMyCalendarAggregate(c *gin.Context) {
 			case "exchange":
 				parsed, e = extcal.FetchExchangeBusyEvents(ctx, a.Server, a.Username, a.Password, dateFrom, dateTo)
 			default:
-				continue
+				return fetchResult{}
 			}
 			if e != nil {
-				accountErrors = append(accountErrors, gin.H{"account_id": a.ID, "type": a.Type, "username": a.Username, "error": e.Error()})
-				continue
+				return fetchResult{accountErrors: []gin.H{{"account_id": a.ID, "type": a.Type, "username": a.Username, "error": e.Error()}}}
 			}
 			color := "#7C3AED"
 			if strings.EqualFold(a.Type, "exchange") {
@@ -371,8 +387,9 @@ func GetMyCalendarAggregate(c *gin.Context) {
 			if strings.TrimSpace(srcName) == "" {
 				srcName = a.Username
 			}
+			items := make([]extItem, 0, len(parsed))
 			for _, ev := range parsed {
-				external = append(external, extItem{
+				items = append(items, extItem{
 					SourceType: "account",
 					SourceID:   a.ID,
 					SourceName: srcName,
@@ -383,6 +400,39 @@ func GetMyCalendarAggregate(c *gin.Context) {
 					Color:      color,
 				})
 			}
+			return fetchResult{external: items}
+		})
+	}
+
+	if len(jobs) > 0 {
+		workerCount := maxExternalCalendarFetchConcurrency
+		if len(jobs) < workerCount {
+			workerCount = len(jobs)
+		}
+
+		jobCh := make(chan func() fetchResult, len(jobs))
+		resultCh := make(chan fetchResult, len(jobs))
+		var wg sync.WaitGroup
+		for i := 0; i < workerCount; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for job := range jobCh {
+					resultCh <- job()
+				}
+			}()
+		}
+		for _, job := range jobs {
+			jobCh <- job
+		}
+		close(jobCh)
+		wg.Wait()
+		close(resultCh)
+
+		for r := range resultCh {
+			external = append(external, r.external...)
+			feedErrors = append(feedErrors, r.feedErrors...)
+			accountErrors = append(accountErrors, r.accountErrors...)
 		}
 	}
 

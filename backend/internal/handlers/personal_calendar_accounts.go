@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 	"zenmind/internal/db"
+	"zenmind/internal/extcal"
 
 	"github.com/gin-gonic/gin"
 )
@@ -62,6 +64,40 @@ type createCalendarAccountRequest struct {
 	Description string `json:"description"`
 }
 
+func normalizeCalendarAccountRequest(req createCalendarAccountRequest) (typ, server, username, password, desc string, err string) {
+	typ = normalizeCalendarAccountType(req.Type)
+	if typ == "" {
+		err = "invalid type"
+		return
+	}
+	server = strings.TrimSpace(req.Server)
+	username = strings.TrimSpace(req.Username)
+	password = strings.TrimSpace(req.Password)
+	desc = strings.TrimSpace(req.Description)
+
+	if username == "" || len(username) > 200 {
+		err = "invalid username"
+		return
+	}
+	if password == "" || len(password) > 512 {
+		err = "invalid password"
+		return
+	}
+	if len(server) > 1024 {
+		err = "invalid server"
+		return
+	}
+	if len(desc) > 200 {
+		err = "invalid description"
+		return
+	}
+	if typ == "caldav" && server == "" {
+		err = "server is required for caldav"
+		return
+	}
+	return
+}
+
 // CreateMyCalendarAccount POST /api/me/calendar-accounts
 func CreateMyCalendarAccount(c *gin.Context) {
 	cu := GetCurrentUser(c)
@@ -74,34 +110,9 @@ func CreateMyCalendarAccount(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
-	typ := normalizeCalendarAccountType(req.Type)
-	if typ == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid type"})
-		return
-	}
-	server := strings.TrimSpace(req.Server)
-	username := strings.TrimSpace(req.Username)
-	password := strings.TrimSpace(req.Password)
-	desc := strings.TrimSpace(req.Description)
-
-	if username == "" || len(username) > 200 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid username"})
-		return
-	}
-	if password == "" || len(password) > 512 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid password"})
-		return
-	}
-	if len(server) > 1024 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid server"})
-		return
-	}
-	if len(desc) > 200 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid description"})
-		return
-	}
-	if typ == "caldav" && server == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "server is required for caldav"})
+	typ, server, username, password, desc, msg := normalizeCalendarAccountRequest(req)
+	if msg != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
 		return
 	}
 
@@ -115,6 +126,54 @@ func CreateMyCalendarAccount(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"id": id})
+}
+
+// TestMyCalendarAccount POST /api/me/calendar-accounts/test
+func TestMyCalendarAccount(c *gin.Context) {
+	cu := GetCurrentUser(c)
+	if cu == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	var req createCalendarAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	typ, server, username, password, _, msg := normalizeCalendarAccountRequest(req)
+	if msg != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
+		return
+	}
+
+	from := time.Now().In(time.Local)
+	from = time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, time.Local)
+	to := from.AddDate(0, 0, 30)
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	defer cancel()
+
+	var (
+		events int
+		err    error
+	)
+	switch typ {
+	case "caldav":
+		var parsed []extcal.ParsedEvent
+		parsed, err = extcal.FetchCalDAVEvents(ctx, server, username, password, from, to)
+		events = len(parsed)
+	case "exchange":
+		var parsed []extcal.ParsedEvent
+		parsed, err = extcal.FetchExchangeBusyEvents(ctx, server, username, password, from, to)
+		events = len(parsed)
+	default:
+		err = nil
+	}
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "events": events})
 }
 
 // DeleteMyCalendarAccount DELETE /api/me/calendar-accounts/:id

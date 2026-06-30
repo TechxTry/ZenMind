@@ -9,6 +9,12 @@ import { useAuthStore } from '../../store/auth'
 const { RangePicker } = DatePicker
 const { Text } = Typography
 
+const CARD_STYLE: React.CSSProperties = {
+  background: 'var(--zm-bg-surface)',
+  border: '1px solid var(--zm-border-subtle)',
+  borderRadius: 8,
+}
+
 type Member = { account: string; realname: string }
 
 function memberLabel(m: Member) {
@@ -286,6 +292,11 @@ const TeamHealthPage: React.FC = () => {
   }, [summary, thresholds.overloadStreak])
   const complianceRate = summary?.compliance_rate ?? 0
   const complianceAlert = complianceRate > 0 && complianceRate < 0.85
+  const totalConsumed = Number(dist?.total_consumed ?? 0)
+  const totalOpenEstimate = userLoadRows.reduce((sum, r) => sum + Number(r.estimate_sum_open ?? 0), 0)
+  const topLoad = [...userLoadRows].sort((a, b) => Number(b.estimate_sum_open ?? 0) - Number(a.estimate_sum_open ?? 0))[0]
+  const topLoadRate = totalOpenEstimate > 0 ? Number(topLoad?.estimate_sum_open ?? 0) / totalOpenEstimate : 0
+  const loadConcentrationAlert = topLoadRate > 0.35 && totalOpenEstimate > 0
 
   return (
     <div>
@@ -301,16 +312,14 @@ const TeamHealthPage: React.FC = () => {
             disabled={dataScope === 'GROUP'}
             allowedGroupIds={dataScope === 'GROUP' && defaultGroupId ? [defaultGroupId] : undefined}
           />
-          {groupId ? <Tag color="purple">{groupName}</Tag> : <Tag>请选择小组</Tag>}
+          {groupId ? <Tag color="purple">{groupName || `小组 ${groupId}`}</Tag> : <Tag>请选择小组</Tag>}
         </Space>
       </div>
 
       <Card
         style={{
           marginBottom: 16,
-          background: 'var(--zm-bg-surface)',
-          border: '1px solid var(--zm-border-subtle)',
-          borderRadius: 12,
+          ...CARD_STYLE,
         }}
       >
         <Space wrap>
@@ -352,6 +361,14 @@ const TeamHealthPage: React.FC = () => {
               onChange={(v) => setThresholds((s) => ({ ...s, overloadHours: Number(v ?? 12) }))}
               style={{ width: 90 }}
             />
+            <Text style={{ color: 'var(--zm-text-muted)' }}>连续过载</Text>
+            <InputNumber
+              min={1}
+              step={1}
+              value={thresholds.overloadStreak}
+              onChange={(v) => setThresholds((s) => ({ ...s, overloadStreak: Number(v ?? 3) }))}
+              style={{ width: 90 }}
+            />
             <Text style={{ color: 'var(--zm-text-muted)' }}>Bug阈值%</Text>
             <InputNumber
               min={0}
@@ -370,7 +387,7 @@ const TeamHealthPage: React.FC = () => {
           <Card
             title="工时填报热力图"
             loading={heatmapLoading}
-            style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}
+            style={CARD_STYLE}
             extra={
               <Space>
                 <Text style={{ color: 'var(--zm-text-muted)' }}>达标≥{thresholds.targetHours}h</Text>
@@ -389,6 +406,12 @@ const TeamHealthPage: React.FC = () => {
                   </Col>
                   <Col>
                     <Statistic title={`过载占比(>${thresholds.overloadHours}h)`} value={((summary?.overload_rate ?? 0) * 100).toFixed(1)} suffix="%" />
+                  </Col>
+                  <Col>
+                    <Statistic title="样本成员日" value={summary?.member_days_total ?? 0} />
+                  </Col>
+                  <Col>
+                    <Statistic title="总报工(h)" value={totalConsumed.toFixed(1)} />
                   </Col>
                 </Row>
                 {complianceAlert && (
@@ -434,13 +457,22 @@ const TeamHealthPage: React.FC = () => {
           <Card
             title="人员资源负载分布"
             loading={userLoadLoading}
-            style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}
+            style={CARD_STYLE}
           >
+            {loadConcentrationAlert && topLoad ? (
+              <Alert
+                type="warning"
+                showIcon
+                style={{ marginBottom: 12 }}
+                message={`剩余预估集中在 ${topLoad.realname?.trim() ? `${topLoad.realname}（${topLoad.account}）` : topLoad.account}，占比 ${(topLoadRate * 100).toFixed(1)}%，建议核对排期与替补安排。`}
+              />
+            ) : null}
             <Table
               size="small"
               rowKey="account"
               dataSource={[...userLoadRows].sort((a, b) => (b.estimate_sum_open ?? 0) - (a.estimate_sum_open ?? 0))}
-              pagination={false}
+              pagination={{ pageSize: 10, showSizeChanger: true }}
+              scroll={{ x: 720 }}
               columns={[
                 {
                   title: '人员',
@@ -449,8 +481,8 @@ const TeamHealthPage: React.FC = () => {
                     <Text style={{ color: 'var(--zm-text-primary)' }}>{r.realname?.trim() ? `${r.realname}（${r.account}）` : r.account}</Text>
                   ),
                 },
-                { title: '未完成数', dataIndex: 'open_task_count', width: 90 },
-                { title: '预估(h)', dataIndex: 'estimate_sum_open', width: 90, render: (v: any) => Number(v ?? 0).toFixed(1) },
+                { title: '未完成数', dataIndex: 'open_task_count', width: 100, sorter: (a: any, b: any) => Number(a.open_task_count ?? 0) - Number(b.open_task_count ?? 0) },
+                { title: '预估(h)', dataIndex: 'estimate_sum_open', width: 100, render: (v: any) => Number(v ?? 0).toFixed(1), sorter: (a: any, b: any) => Number(a.estimate_sum_open ?? 0) - Number(b.estimate_sum_open ?? 0) },
                 {
                   title: '',
                   width: 80,
@@ -474,7 +506,7 @@ const TeamHealthPage: React.FC = () => {
           <Card
             title="精力投入分布（按报工关联类型）"
             loading={distLoading}
-            style={{ background: 'var(--zm-bg-surface)', border: '1px solid var(--zm-border-subtle)', borderRadius: 12 }}
+            style={CARD_STYLE}
             extra={<Text style={{ color: 'var(--zm-text-muted)' }}>Bug占比阈值：{Math.round(thresholds.bugPercentAlert * 100)}%</Text>}
           >
             {bugAlert && (
@@ -512,7 +544,8 @@ const TeamHealthPage: React.FC = () => {
           size="small"
           loading={effortLoading}
           dataSource={effortRows}
-          pagination={false}
+          pagination={{ pageSize: 20, showSizeChanger: true }}
+          scroll={{ x: 860 }}
           columns={[
             { title: '日期', dataIndex: 'work_date', width: 110, render: (v: string) => v ? dayjs(v).format('YYYY-MM-DD') : '-' },
             { title: '消耗(h)', dataIndex: 'consumed', width: 90 },
@@ -557,7 +590,8 @@ const TeamHealthPage: React.FC = () => {
           size="small"
           loading={taskLoading}
           dataSource={taskRows}
-          pagination={false}
+          pagination={{ pageSize: 20, showSizeChanger: true }}
+          scroll={{ x: 920 }}
           columns={[
             { title: 'ID', dataIndex: 'id', width: 80 },
             { title: '任务名', dataIndex: 'name', render: (v: string) => <Text style={{ color: 'var(--zm-text-primary)' }}>{v}</Text> },
@@ -574,4 +608,3 @@ const TeamHealthPage: React.FC = () => {
 }
 
 export default TeamHealthPage
-

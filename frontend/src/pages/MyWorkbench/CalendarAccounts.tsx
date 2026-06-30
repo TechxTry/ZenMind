@@ -21,6 +21,7 @@ import {
   deleteCalendarFeed,
   listCalendarAccounts,
   listCalendarFeeds,
+  testCalendarAccount,
 } from '../../api'
 import type { CalendarAccount, CalendarAccountType, CalendarFeed } from '../../api'
 
@@ -37,6 +38,7 @@ const CalendarAccountsPage: React.FC = () => {
   const [accountsLoading, setAccountsLoading] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const [accountSubmitting, setAccountSubmitting] = useState(false)
+  const [accountTesting, setAccountTesting] = useState(false)
   const [feeds, setFeeds] = useState<CalendarFeed[]>([])
   const [feedsLoading, setFeedsLoading] = useState(false)
   const [feedOpen, setFeedOpen] = useState(false)
@@ -108,6 +110,25 @@ const CalendarAccountsPage: React.FC = () => {
       message.error(e.response?.data?.error ?? '添加失败')
     } finally {
       setAccountSubmitting(false)
+    }
+  }
+
+  const onTestAccount = async () => {
+    const v = await form.validateFields()
+    setAccountTesting(true)
+    try {
+      const r = await testCalendarAccount({
+        type: v.type,
+        server: v.server,
+        username: v.username,
+        password: v.password,
+        description: v.description,
+      })
+      message.success(`连接成功，未来 30 天读取到 ${r.events ?? 0} 条日程`)
+    } catch (e: any) {
+      message.error(e.response?.data?.error ?? '连接失败')
+    } finally {
+      setAccountTesting(false)
     }
   }
 
@@ -305,8 +326,13 @@ const CalendarAccountsPage: React.FC = () => {
           showIcon
           style={{ marginBottom: 12 }}
           message="支持 Exchange / CalDAV"
-          description="当前版本仅做账户管理（安全加密存储），后续可用于自动拉取日程并合并到工作台日历。"
+          description="账户信息会加密保存；保存前可先测试连接，确认服务器地址与密码可用。"
         />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+          <Button onClick={onTestAccount} loading={accountTesting}>
+            测试连接
+          </Button>
+        </div>
         <Form form={form} layout="vertical" initialValues={{ type: 'exchange' }}>
           <Form.Item name="username" label="邮箱" rules={[{ required: true, message: '请输入邮箱' }]}>
             <Input placeholder="例如：gaojy@digiwin.com" maxLength={200} />
@@ -322,6 +348,10 @@ const CalendarAccountsPage: React.FC = () => {
           {selectedType === 'caldav' ? (
             <Form.Item name="server" label="服务器" rules={[{ required: true, message: '请输入服务器' }]}>
               <Input placeholder="cal.example.com 或 https://cal.example.com/dav" maxLength={1024} />
+            </Form.Item>
+          ) : selectedType === 'exchange' ? (
+            <Form.Item name="server" label="EWS 地址">
+              <Input placeholder="可选：mail.example.com 或 https://mail.example.com/EWS/Exchange.asmx" maxLength={1024} />
             </Form.Item>
           ) : null}
 
@@ -375,4 +405,3 @@ const CalendarAccountsPage: React.FC = () => {
 }
 
 export default CalendarAccountsPage
-

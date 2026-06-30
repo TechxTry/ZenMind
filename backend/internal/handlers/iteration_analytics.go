@@ -56,6 +56,39 @@ func parseIterationReq(c *gin.Context) (iterationReq, error) {
 	return iterationReq{GroupID: groupID, ExecutionID: execID, DateFrom: from, DateTo: to}, nil
 }
 
+func scopedIterationAccounts(c *gin.Context, req *iterationReq) (accounts []string, showNone bool, ok bool) {
+	if cu := GetCurrentUser(c); cu == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return nil, false, false
+	} else {
+		switch normalizeScope(cu.User.DataScope) {
+		case scopeSelf:
+			acc, ok := requireBinding(c)
+			if !ok {
+				return nil, false, false
+			}
+			req.GroupID = 0
+			return []string{acc}, false, true
+		case scopeGroup:
+			gid, ok := effectiveGroupID(c, req.GroupID)
+			if !ok {
+				return nil, false, false
+			}
+			req.GroupID = gid
+		}
+	}
+
+	accounts, showNone = groupFilter(req.GroupID)
+	if showNone {
+		return nil, true, true
+	}
+	if req.GroupID > 0 && len(accounts) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "group has no members"})
+		return nil, false, false
+	}
+	return accounts, false, true
+}
+
 // IterationOverview GET /api/analytics/iteration/overview
 func IterationOverview(c *gin.Context) {
 	req, err := parseIterationReq(c)
@@ -68,14 +101,12 @@ func IterationOverview(c *gin.Context) {
 		return
 	}
 
-	accounts, showNone := groupFilter(req.GroupID)
-	if showNone {
-		c.JSON(http.StatusOK, gin.H{"group_id": req.GroupID, "execution_id": req.ExecutionID})
+	accounts, showNone, ok := scopedIterationAccounts(c, &req)
+	if !ok {
 		return
 	}
-	// Only error on empty members when group_id is explicitly provided.
-	if req.GroupID > 0 && len(accounts) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "group has no members"})
+	if showNone {
+		c.JSON(http.StatusOK, gin.H{"group_id": req.GroupID, "execution_id": req.ExecutionID})
 		return
 	}
 
@@ -225,13 +256,12 @@ func IterationBurndown(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	accounts, showNone := groupFilter(req.GroupID)
-	if showNone {
-		c.JSON(http.StatusOK, gin.H{"series": []gin.H{}})
+	accounts, showNone, ok := scopedIterationAccounts(c, &req)
+	if !ok {
 		return
 	}
-	if req.GroupID > 0 && len(accounts) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "group has no members"})
+	if showNone {
+		c.JSON(http.StatusOK, gin.H{"series": []gin.H{}})
 		return
 	}
 
@@ -311,13 +341,12 @@ func IterationCFD(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	accounts, showNone := groupFilter(req.GroupID)
-	if showNone {
-		c.JSON(http.StatusOK, gin.H{"series": []gin.H{}})
+	accounts, showNone, ok := scopedIterationAccounts(c, &req)
+	if !ok {
 		return
 	}
-	if req.GroupID > 0 && len(accounts) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "group has no members"})
+	if showNone {
+		c.JSON(http.StatusOK, gin.H{"series": []gin.H{}})
 		return
 	}
 
@@ -404,13 +433,12 @@ func IterationCycleTime(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	accounts, showNone := groupFilter(req.GroupID)
-	if showNone {
-		c.JSON(http.StatusOK, gin.H{"items": []gin.H{}})
+	accounts, showNone, ok := scopedIterationAccounts(c, &req)
+	if !ok {
 		return
 	}
-	if req.GroupID > 0 && len(accounts) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "group has no members"})
+	if showNone {
+		c.JSON(http.StatusOK, gin.H{"items": []gin.H{}})
 		return
 	}
 
@@ -480,13 +508,12 @@ func IterationScopeChange(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	accounts, showNone := groupFilter(req.GroupID)
-	if showNone {
-		c.JSON(http.StatusOK, gin.H{"items": []gin.H{}})
+	accounts, showNone, ok := scopedIterationAccounts(c, &req)
+	if !ok {
 		return
 	}
-	if req.GroupID > 0 && len(accounts) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "group has no members"})
+	if showNone {
+		c.JSON(http.StatusOK, gin.H{"items": []gin.H{}})
 		return
 	}
 

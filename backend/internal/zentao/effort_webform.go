@@ -26,6 +26,15 @@ type CreateEffortResult struct {
 	FinalURL      string `json:"final_url"`
 }
 
+// EditTaskEffortInput is used by task-editEffort webform (date/work/consumed/left).
+type EditTaskEffortInput struct {
+	EffortID int64
+	WorkDate string
+	Work     string
+	Consumed string
+	Left     string // optional
+}
+
 var (
 	errAuthExpired = errors.New("zentao auth expired")
 )
@@ -49,21 +58,9 @@ func CreateTaskEffortByWebForm(ctx context.Context, baseURL string, cookies []*h
 		return nil, fmt.Errorf("consumed and left are required")
 	}
 
-	uBase, err := url.Parse(baseURL)
-	if err != nil || uBase.Scheme == "" || uBase.Host == "" {
-		return nil, fmt.Errorf("invalid base url")
-	}
-
-	jar, _ := cookiejar.New(nil)
-	for _, ck := range cookies {
-		if ck == nil {
-			continue
-		}
-		jar.SetCookies(uBase, []*http.Cookie{ck})
-	}
-	client := &http.Client{
-		Timeout: 20 * time.Second,
-		Jar:     jar,
+	client, err := newWebformClient(baseURL, cookies)
+	if err != nil {
+		return nil, err
 	}
 
 	endpoints := []string{
@@ -85,27 +82,181 @@ func CreateTaskEffortByWebForm(ctx context.Context, baseURL string, cookies []*h
 	return nil, lastErr
 }
 
-func tryCreateEffortAtEndpoint(ctx context.Context, client *http.Client, endpoint string, in CreateTaskEffortInput) (finalURL string, err error) {
-	reqGet, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+// UpdateTaskEffortByWebForm edits one effort row via task-editEffort (no REST route in stock ZenTao).
+func UpdateTaskEffortByWebForm(ctx context.Context, baseURL string, cookies []*http.Cookie, in EditTaskEffortInput) (*CreateEffortResult, error) {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if baseURL == "" {
+		return nil, fmt.Errorf("base url is empty")
+	}
+	if in.EffortID <= 0 {
+		return nil, fmt.Errorf("effort_id is invalid")
+	}
+	if strings.TrimSpace(in.Consumed) == "" {
+		return nil, fmt.Errorf("consumed is required")
+	}
+
+	client, err := newWebformClient(baseURL, cookies)
+	if err != nil {
+		return nil, err
+	}
+
+	endpoints := []string{
+		fmt.Sprintf("%s/task-editEffort-%d.html", baseURL, in.EffortID),
+		fmt.Sprintf("%s/task-editeffort-%d.html", baseURL, in.EffortID),
+	}
+	var lastErr error
+	for _, endpoint := range endpoints {
+		final, err := tryEditEffortAtEndpoint(ctx, client, endpoint, in)
+		if err == nil {
+			return &CreateEffortResult{EndpointTried: endpoint, FinalURL: final}, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("unknown error")
+	}
+	return nil, lastErr
+}
+
+// DeleteTaskEffortByWebForm deletes one effort via task-deleteWorkhour (confirm=yes).
+func DeleteTaskEffortByWebForm(ctx context.Context, baseURL string, cookies []*http.Cookie, effortID int64) (*CreateEffortResult, error) {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if baseURL == "" {
+		return nil, fmt.Errorf("base url is empty")
+	}
+	if effortID <= 0 {
+		return nil, fmt.Errorf("effort_id is invalid")
+	}
+
+	client, err := newWebformClient(baseURL, cookies)
+	if err != nil {
+		return nil, err
+	}
+
+	endpoints := []string{
+		fmt.Sprintf("%s/task-deleteWorkhour-%d-yes.html", baseURL, effortID),
+		fmt.Sprintf("%s/task-deleteworkhour-%d-yes.html", baseURL, effortID),
+		fmt.Sprintf("%s/task-deleteWorkhour-effortID-%d-confirm-yes.html", baseURL, effortID),
+		fmt.Sprintf("%s/task-deleteworkhour-effortID-%d-confirm-yes.html", baseURL, effortID),
+		fmt.Sprintf("%s/effort-delete-%d-yes.html", baseURL, effortID),
+		fmt.Sprintf("%s/effort-delete-%d-confirm-yes.html", baseURL, effortID),
+		fmt.Sprintf("%s/effort-delete-effortID-%d-confirm-yes.html", baseURL, effortID),
+	}
+	var lastErr error
+	for _, endpoint := range endpoints {
+		final, err := tryDeleteEffortAtEndpoint(ctx, client, endpoint)
+		if err == nil {
+			return &CreateEffortResult{EndpointTried: endpoint, FinalURL: final}, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("unknown error")
+	}
+	return nil, lastErr
+}
+
+func newWebformClient(baseURL string, cookies []*http.Cookie) (*http.Client, error) {
+	uBase, err := url.Parse(baseURL)
+	if err != nil || uBase.Scheme == "" || uBase.Host == "" {
+		return nil, fmt.Errorf("invalid base url")
+	}
+	jar, _ := cookiejar.New(nil)
+	for _, ck := range cookies {
+		if ck == nil {
+			continue
+		}
+		jar.SetCookies(uBase, []*http.Cookie{ck})
+	}
+	return &http.Client{Timeout: 20 * time.Second, Jar: jar}, nil
+}
+
+func tryEditEffortAtEndpoint(ctx context.Context, client *http.Client, endpoint string, in EditTaskEffortInput) (finalURL string, err error) {
+	body, err := fetchWebformPage(ctx, client, endpoint)
 	if err != nil {
 		return "", err
+	}
+	tokenName, tokenValue := extractCSRFToken(body)
+	form := buildEditEffortForm(in, tokenName, tokenValue)
+	return submitForm(ctx, client, endpoint, form)
+}
+
+func tryDeleteEffortAtEndpoint(ctx context.Context, client *http.Client, endpoint string) (finalURL string, err error) {
+	body, getFinalURL, err := fetchWebformPageWithFinalURL(ctx, client, endpoint)
+	if err != nil {
+		return "", err
+	}
+	// Some Zentao versions perform delete on GET and directly redirect away from delete route.
+	if !looksLikeDeleteEndpoint(getFinalURL) {
+		return getFinalURL, nil
+	}
+	tokenName, tokenValue := extractCSRFToken(body)
+	form := url.Values{}
+	if tokenName != "" && tokenValue != "" {
+		form.Set(tokenName, tokenValue)
+	}
+	final, postBody, err := submitFormWithBody(ctx, client, endpoint, form)
+	if err != nil {
+		return "", err
+	}
+	// Guard against false positives: if still on delete confirmation page, treat as failure.
+	if looksLikeDeleteEndpoint(final) && looksLikeDeleteConfirmationPage(postBody) {
+		return "", fmt.Errorf("zentao delete effort stayed on confirmation page")
+	}
+	return final, nil
+}
+
+func fetchWebformPage(ctx context.Context, client *http.Client, endpoint string) (body string, err error) {
+	body, _, err = fetchWebformPageWithFinalURL(ctx, client, endpoint)
+	return body, err
+}
+
+func fetchWebformPageWithFinalURL(ctx context.Context, client *http.Client, endpoint string) (body string, finalURL string, err error) {
+	reqGet, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", "", err
 	}
 	reqGet.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 
 	resp, err := client.Do(reqGet)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer resp.Body.Close()
 
 	bodyB, _ := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
-	body := string(bodyB)
-
+	body = string(bodyB)
 	if looksLikeLoginPage(resp, body) {
-		return "", errAuthExpired
+		return "", "", errAuthExpired
 	}
 	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("zentao returned http %d", resp.StatusCode)
+		return "", "", fmt.Errorf("zentao returned http %d", resp.StatusCode)
+	}
+	return body, resp.Request.URL.String(), nil
+}
+
+func buildEditEffortForm(in EditTaskEffortInput, tokenName, tokenValue string) url.Values {
+	v := url.Values{}
+	if tokenName != "" && tokenValue != "" {
+		v.Set(tokenName, tokenValue)
+	}
+	if strings.TrimSpace(in.WorkDate) != "" {
+		v.Set("date", strings.TrimSpace(in.WorkDate))
+	}
+	if strings.TrimSpace(in.Work) != "" {
+		v.Set("work", in.Work)
+	}
+	v.Set("consumed", strings.TrimSpace(in.Consumed))
+	if strings.TrimSpace(in.Left) != "" {
+		v.Set("left", strings.TrimSpace(in.Left))
+	}
+	return v
+}
+
+func tryCreateEffortAtEndpoint(ctx context.Context, client *http.Client, endpoint string, in CreateTaskEffortInput) (finalURL string, err error) {
+	body, err := fetchWebformPage(ctx, client, endpoint)
+	if err != nil {
+		return "", err
 	}
 
 	tokenName, tokenValue := extractCSRFToken(body)
@@ -132,9 +283,14 @@ func tryCreateEffortAtEndpoint(ctx context.Context, client *http.Client, endpoin
 }
 
 func submitForm(ctx context.Context, client *http.Client, endpoint string, form url.Values) (finalURL string, err error) {
+	finalURL, _, err = submitFormWithBody(ctx, client, endpoint, form)
+	return finalURL, err
+}
+
+func submitFormWithBody(ctx context.Context, client *http.Client, endpoint string, form url.Values) (finalURL, body string, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
@@ -142,40 +298,59 @@ func submitForm(ctx context.Context, client *http.Client, endpoint string, form 
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer resp.Body.Close()
 
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
-	body := string(b)
+	body = string(b)
 	if looksLikeLoginPage(resp, body) {
-		return "", errAuthExpired
+		return "", "", errAuthExpired
 	}
 	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("zentao returned http %d", resp.StatusCode)
+		return "", "", fmt.Errorf("zentao returned http %d", resp.StatusCode)
 	}
 
 	// Zentao often returns a page with JS message; treat obvious error as failure.
 	lb := strings.ToLower(body)
 	if strings.Contains(lb, "alert(") && (strings.Contains(body, "失败") || strings.Contains(lb, "fail") || strings.Contains(lb, "error")) {
-		return "", fmt.Errorf("zentao returned failure alert")
+		return "", "", fmt.Errorf("zentao returned failure alert")
 	}
 	// Common error containers (Zentao UI / bootstrap)
 	if strings.Contains(lb, "alert alert-danger") || strings.Contains(lb, "text-danger") {
 		// If it looks like we are still on the recordEstimate form with an error, fail fast.
 		if strings.Contains(lb, "recordestimate") || strings.Contains(lb, "record estimate") || strings.Contains(lb, "name=\"consumed\"") {
-			return "", fmt.Errorf("zentao returned validation error page")
+			return "", "", fmt.Errorf("zentao returned validation error page")
 		}
 	}
 	// CSRF/token mismatch hints
 	if strings.Contains(lb, "token") && (strings.Contains(body, "无效") || strings.Contains(body, "错误") || strings.Contains(lb, "invalid")) {
-		return "", fmt.Errorf("zentao csrf token invalid")
+		return "", "", fmt.Errorf("zentao csrf token invalid")
 	}
 	// Some instances show "login" text without standard form markers; keep this extra heuristic.
 	if strings.Contains(body, "登录") && strings.Contains(lb, "password") {
-		return "", errAuthExpired
+		return "", "", errAuthExpired
 	}
-	return resp.Request.URL.String(), nil
+	return resp.Request.URL.String(), body, nil
+}
+
+func looksLikeDeleteEndpoint(raw string) bool {
+	l := strings.ToLower(raw)
+	return strings.Contains(l, "task-deleteworkhour") ||
+		strings.Contains(l, "task-deletework-hour") ||
+		strings.Contains(l, "effort-delete") ||
+		strings.Contains(l, "deleteeffort")
+}
+
+func looksLikeDeleteConfirmationPage(body string) bool {
+	lb := strings.ToLower(body)
+	if !strings.Contains(lb, "deleteworkhour") && !strings.Contains(lb, "effort-delete") && !strings.Contains(lb, "delete effort") {
+		return false
+	}
+	return strings.Contains(lb, "confirm=yes") ||
+		strings.Contains(lb, "确认删除") ||
+		strings.Contains(lb, "确定删除") ||
+		strings.Contains(lb, "are you sure")
 }
 
 func looksLikeLoginPage(resp *http.Response, body string) bool {

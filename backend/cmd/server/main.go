@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"time"
 	"zenmind/internal/config"
 	"zenmind/internal/db"
 	"zenmind/internal/handlers"
@@ -26,6 +27,11 @@ func main() {
 	db.InitPG()
 	if err := db.RunPendingMigrations(); err != nil {
 		log.Fatalf("[main] migrations: %v", err)
+	}
+	if n, err := db.RepairStaleSyncRunLogs(6 * time.Hour); err != nil {
+		log.Printf("[main] repair stale sync logs: %v", err)
+	} else if n > 0 {
+		log.Printf("[main] repaired %d stale sync_run_logs (running > 6h)", n)
 	}
 	if err := db.EnsureBootstrapAdmin(); err != nil {
 		log.Fatalf("[main] bootstrap admin: %v", err)
@@ -94,6 +100,7 @@ func main() {
 		api.DELETE("/me/calendar-feeds/:id", handlers.DeleteMyCalendarFeed)
 		api.GET("/me/calendar-aggregate", handlers.GetMyCalendarAggregate)
 		api.GET("/me/calendar-accounts", handlers.ListMyCalendarAccounts)
+		api.POST("/me/calendar-accounts/test", handlers.TestMyCalendarAccount)
 		api.POST("/me/calendar-accounts", handlers.CreateMyCalendarAccount)
 		api.DELETE("/me/calendar-accounts/:id", handlers.DeleteMyCalendarAccount)
 		api.GET("/me/mcp-tokens", handlers.ListMyMCPTokens)
@@ -163,6 +170,8 @@ func main() {
 		api.POST("/sync/trigger", handlers.TriggerSync)
 		api.POST("/sync/effort-reconcile", handlers.TriggerEffortReconcile)
 		api.GET("/sync/status", handlers.GetSyncStatus)
+		api.GET("/sync/active", handlers.GetSyncActive)
+		api.GET("/sync/logs", handlers.ListSyncLogs)
 
 		// Zentao auth (session)
 		api.GET("/zentao/auth/status", handlers.GetZentaoAuthStatus)
@@ -175,6 +184,12 @@ func main() {
 
 		// Zentao write-back
 		api.POST("/zentao/efforts", handlers.CreateZentaoEffort)
+		api.PATCH("/zentao/efforts/:id", handlers.UpdateZentaoEffort)
+		api.DELETE("/zentao/efforts/:id", handlers.DeleteZentaoEffort)
+		api.PATCH("/zentao/tasks/:id", handlers.UpdateZentaoTask)
+		api.POST("/zentao/bugs", handlers.CreateZentaoBug)
+		api.PATCH("/zentao/bugs/:id", handlers.UpdateZentaoBug)
+		api.DELETE("/zentao/bugs/:id", handlers.DeleteZentaoBug)
 	}
 
 	// MCP server (JSON-RPC 2.0 over HTTP; under /api so Nginx can proxy it)

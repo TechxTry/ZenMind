@@ -12,20 +12,23 @@ import (
 
 // TriggerSync POST /api/sync/trigger — runs ETL in background goroutine
 func TriggerSync(c *gin.Context) {
-	if _, ok := RequireAdmin(c); !ok {
+	cu, ok := RequireAdmin(c)
+	if !ok {
 		return
 	}
 	if db.GetZentao() == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Zentao datasource not configured"})
 		return
 	}
-	go etl.RunAll()
-	c.JSON(http.StatusAccepted, gin.H{"message": "sync started"})
+	ctx := etl.RunContext{Source: etl.TriggerManual, Actor: cu.User.Username}
+	go etl.RunAllWith(ctx)
+	c.JSON(http.StatusAccepted, gin.H{"message": "增量同步已启动"})
 }
 
-// TriggerEffortReconcile POST /api/sync/effort-reconcile — daily effort date-window reconcile (admin).
+// TriggerEffortReconcile POST /api/sync/effort-reconcile — effort date-window reconcile (admin).
 func TriggerEffortReconcile(c *gin.Context) {
-	if _, ok := RequireAdmin(c); !ok {
+	cu, ok := RequireAdmin(c)
+	if !ok {
 		return
 	}
 	if db.GetZentao() == nil {
@@ -33,21 +36,32 @@ func TriggerEffortReconcile(c *gin.Context) {
 		return
 	}
 	if !config.Global.EffortReconcileEnabled {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "daily effort reconcile is disabled (EFFORT_RECONCILE_ENABLED=false)"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "报工回刷已在环境变量中关闭（EFFORT_RECONCILE_ENABLED=false）"})
 		return
 	}
-	if kind := etl.ActiveRunKind(); kind != "" {
+	if etl.IsEffortReconcileRunning() {
 		c.JSON(http.StatusConflict, gin.H{
-			"error":   "another ETL job is running",
-			"running": kind,
+			"error":   "回刷报工任务已在执行，请稍后再试",
+			"running": "effort_daily_reconcile",
 		})
 		return
 	}
-	go etl.RunEffortsDailyReconcile()
+	ctx := etl.RunContext{Source: etl.TriggerManual, Actor: cu.User.Username}
+	go etl.RunEffortsDailyReconcileWith(ctx)
+	days := config.ClampEffortReconcileDays(config.Global.EffortReconcileDays)
 	c.JSON(http.StatusAccepted, gin.H{
-		"message": "effort daily reconcile started",
-		"days":    config.ClampEffortReconcileDays(config.Global.EffortReconcileDays),
+		"message": "报工回刷已启动",
+		"days":    days,
 	})
+}
+
+// GetSyncActive GET /api/sync/active — in-flight ETL jobs (admin).
+func GetSyncActive(c *gin.Context) {
+	if _, ok := RequireAdmin(c); !ok {
+		return
+	}
+	runs := etl.ActiveRuns()
+	c.JSON(http.StatusOK, gin.H{"running": runs, "busy": len(runs) > 0})
 }
 
 // GetSyncStatus GET /api/sync/status
@@ -76,4 +90,18 @@ func GetSyncStatus(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{"tables": result})
+}
+
+// ListSyncLogs GET /api/sync/logs — recent sync / effort-reconcile run history (admin).
+func ListSyncLogs(c *gin.Context) {
+	if _, ok := RequireAdmin(c); !ok {
+		return
+	}
+	page, pageSize := parsePagination(c)
+	rows, total, err := db.ListSyncRunLogs((page-1)*pageSize, pageSize)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, pageResponse(rows, total, page, pageSize))
 }

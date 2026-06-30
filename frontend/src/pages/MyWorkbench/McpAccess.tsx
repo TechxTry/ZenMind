@@ -33,9 +33,29 @@ const McpAccessPage: React.FC = () => {
   const [createOpen, setCreateOpen] = useState(false)
   const [tokenOpen, setTokenOpen] = useState(false)
   const [creating, setCreating] = useState(false)
-  const [name, setName] = useState('我的 Cursor')
+  const [name, setName] = useState('我的 MCP 客户端')
   const [expireDays, setExpireDays] = useState<number>(90)
   const [newToken, setNewToken] = useState<string>('')
+  const mcpUrl = `${window.location.origin}/api/mcp`
+
+  const mcpConfigExample = useMemo(
+    () =>
+      JSON.stringify(
+        {
+          mcpServers: {
+            zenmind: {
+              url: mcpUrl,
+              headers: {
+                Authorization: 'Bearer zmcp_xxx_your_token',
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    [mcpUrl],
+  )
 
   const load = async () => {
     setLoading(true)
@@ -53,7 +73,6 @@ const McpAccessPage: React.FC = () => {
 
   const mcpConfig = useMemo(() => {
     if (!newToken) return ''
-    const mcpUrl = `${window.location.origin}/api/mcp`
     return JSON.stringify(
       {
         mcpServers: {
@@ -103,7 +122,7 @@ const McpAccessPage: React.FC = () => {
   }
 
   const openCreateModal = () => {
-    setName('我的 Cursor')
+    setName('我的 MCP 客户端')
     setExpireDays(90)
     setCreateOpen(true)
   }
@@ -115,10 +134,14 @@ const McpAccessPage: React.FC = () => {
           普通用户可在这里创建专用于 MCP 的个人访问密钥（无需 DevTools）。密钥只会在创建成功时展示一次。
         </Paragraph>
         <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          在 Cursor 中：设置 → Features → Model Context Protocol → Open JSON，将下方「MCP 配置」整段粘贴到
-          <Text code>mcpServers</Text> 中（或写入项目 <Text code>.cursor/mcp.json</Text>）。
-          修改配置后请重启 Cursor 或重新加载 MCP。
+          在任意支持 MCP 的客户端中，将下方 JSON 整段写入对应配置文件即可。通常写入
+          <Text code>mcpServers</Text> 字段或专用 MCP 配置文件；例如 Cursor 可写入
+          <Text code>.cursor/mcp.json</Text>。修改配置后请重启客户端或重新加载 MCP。
         </Paragraph>
+        <Paragraph type="secondary">
+          JSON 样例（可直接写入配置文件，使用前将 <Text code>zmcp_xxx_your_token</Text> 替换为你的真实密钥）：
+        </Paragraph>
+        <Input.TextArea value={mcpConfigExample} autoSize={{ minRows: 6, maxRows: 12 }} readOnly style={{ marginBottom: 16 }} />
         <Table<MCPAccessToken>
           rowKey="id"
           loading={loading}

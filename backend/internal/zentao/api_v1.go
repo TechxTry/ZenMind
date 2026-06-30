@@ -424,8 +424,30 @@ func (c *APIClient) buildEffortRequest(in APICreateTaskEffortInput, variant stri
 // numFromAny 兼容 JSON 数字、字符串数字、json.Number。
 func numFromAny(v any) (float64, bool) {
 	switch x := v.(type) {
+	case int:
+		return float64(x), true
+	case int8:
+		return float64(x), true
+	case int16:
+		return float64(x), true
+	case int32:
+		return float64(x), true
+	case int64:
+		return float64(x), true
+	case uint:
+		return float64(x), true
+	case uint8:
+		return float64(x), true
+	case uint16:
+		return float64(x), true
+	case uint32:
+		return float64(x), true
+	case uint64:
+		return float64(x), true
 	case float64:
 		return x, true
+	case float32:
+		return float64(x), true
 	case json.Number:
 		f, err := x.Float64()
 		return f, err == nil
@@ -434,6 +456,779 @@ func numFromAny(v any) (float64, bool) {
 		return f, err == nil
 	}
 	return 0, false
+}
+
+// APICreateTask creates a task via API v1.
+// Most instances accept POST /api.php/v1/tasks; some custom builds expose
+// POST /api.php/v1/executions/{execution}/tasks. We try both when execution is present.
+func (c *APIClient) APICreateTask(ctx context.Context, token string, payload map[string]any) (map[string]any, error) {
+	if len(payload) == 0 {
+		return nil, fmt.Errorf("empty payload")
+	}
+	if strings.TrimSpace(fmt.Sprintf("%v", payload["name"])) == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+	ensureTaskEstStarted(payload)
+
+	urls := make([]string, 0, 3)
+	if execID, ok := taskExecutionID(payload); ok && execID > 0 {
+		urls = appendCreateTaskURL(urls, fmt.Sprintf("%s/api.php/v1/executions/%d/tasks", c.BaseURL, execID))
+	}
+	if projectID, ok := taskProjectID(payload); ok && projectID > 0 {
+		urls = appendCreateTaskURL(urls, fmt.Sprintf("%s/api.php/v1/projects/%d/tasks", c.BaseURL, projectID))
+	}
+	urls = appendCreateTaskURL(urls, fmt.Sprintf("%s/api.php/v1/tasks", c.BaseURL))
+
+	var lastErr error
+	for _, u := range urls {
+		out, err := c.apiJSON(ctx, http.MethodPost, u, token, payload)
+		if err == nil {
+			return out, nil
+		}
+		lastErr = err
+		if shouldContinueCreateTaskTry(err) {
+			continue
+		}
+		return nil, err
+	}
+	return nil, lastErr
+}
+
+func ensureTaskEstStarted(payload map[string]any) {
+	if payload == nil {
+		return
+	}
+	if s, ok := payload["estStarted"].(string); ok && strings.TrimSpace(s) != "" {
+		return
+	}
+	if s, ok := payload["est_started"].(string); ok && strings.TrimSpace(s) != "" {
+		payload["estStarted"] = strings.TrimSpace(s)
+		return
+	}
+	payload["estStarted"] = time.Now().Format("2006-01-02")
+}
+
+func appendCreateTaskURL(urls []string, u string) []string {
+	for _, existing := range urls {
+		if existing == u {
+			return urls
+		}
+	}
+	return append(urls, u)
+}
+
+func taskExecutionID(payload map[string]any) (int64, bool) {
+	if v, ok := payload["execution"]; ok {
+		if f, ok2 := numFromAny(v); ok2 {
+			return int64(f), true
+		}
+	}
+	if v, ok := payload["execution_id"]; ok {
+		if f, ok2 := numFromAny(v); ok2 {
+			return int64(f), true
+		}
+	}
+	return 0, false
+}
+
+func taskProjectID(payload map[string]any) (int64, bool) {
+	if v, ok := payload["project"]; ok {
+		if f, ok2 := numFromAny(v); ok2 {
+			return int64(f), true
+		}
+	}
+	if v, ok := payload["project_id"]; ok {
+		if f, ok2 := numFromAny(v); ok2 {
+			return int64(f), true
+		}
+	}
+	return 0, false
+}
+
+func shouldContinueCreateTaskTry(err error) bool {
+	he, ok := IsAPIHTTPError(err)
+	if !ok {
+		return false
+	}
+	if he.Status == http.StatusNotFound || he.Status == http.StatusMethodNotAllowed {
+		return true
+	}
+	body := strings.ToLower(he.Body)
+	if !strings.Contains(body, "tasksentry::post") {
+		return false
+	}
+	return strings.Contains(body, "too few arguments") ||
+		strings.Contains(body, "argumentcounterror") ||
+		strings.Contains(body, "missing argument")
+}
+
+// APICreateBug creates a bug via API v1.
+// Different Zentao builds may expose POST routes under executions/projects/products/bugs.
+func (c *APIClient) APICreateBug(ctx context.Context, token string, payload map[string]any) (map[string]any, error) {
+	if len(payload) == 0 {
+		return nil, fmt.Errorf("empty payload")
+	}
+	if strings.TrimSpace(fmt.Sprintf("%v", payload["title"])) == "" {
+		return nil, fmt.Errorf("title is required")
+	}
+
+	urls := make([]string, 0, 4)
+	if execID, ok := bugExecutionID(payload); ok && execID > 0 {
+		urls = appendCreateTaskURL(urls, fmt.Sprintf("%s/api.php/v1/executions/%d/bugs", c.BaseURL, execID))
+	}
+	if projectID, ok := bugProjectID(payload); ok && projectID > 0 {
+		urls = appendCreateTaskURL(urls, fmt.Sprintf("%s/api.php/v1/projects/%d/bugs", c.BaseURL, projectID))
+	}
+	if productID, ok := bugProductID(payload); ok && productID > 0 {
+		urls = appendCreateTaskURL(urls, fmt.Sprintf("%s/api.php/v1/products/%d/bugs", c.BaseURL, productID))
+	}
+	urls = appendCreateTaskURL(urls, fmt.Sprintf("%s/api.php/v1/bugs", c.BaseURL))
+
+	var lastErr error
+	for _, u := range urls {
+		out, err := c.apiJSON(ctx, http.MethodPost, u, token, payload)
+		if err == nil {
+			return out, nil
+		}
+		lastErr = err
+		if shouldContinueCreateBugTry(err) {
+			continue
+		}
+		return nil, err
+	}
+	return nil, lastErr
+}
+
+func bugExecutionID(payload map[string]any) (int64, bool) {
+	if v, ok := payload["execution"]; ok {
+		if f, ok2 := numFromAny(v); ok2 {
+			return int64(f), true
+		}
+	}
+	if v, ok := payload["execution_id"]; ok {
+		if f, ok2 := numFromAny(v); ok2 {
+			return int64(f), true
+		}
+	}
+	return 0, false
+}
+
+func bugProjectID(payload map[string]any) (int64, bool) {
+	if v, ok := payload["project"]; ok {
+		if f, ok2 := numFromAny(v); ok2 {
+			return int64(f), true
+		}
+	}
+	if v, ok := payload["project_id"]; ok {
+		if f, ok2 := numFromAny(v); ok2 {
+			return int64(f), true
+		}
+	}
+	return 0, false
+}
+
+func bugProductID(payload map[string]any) (int64, bool) {
+	if v, ok := payload["product"]; ok {
+		if f, ok2 := numFromAny(v); ok2 {
+			return int64(f), true
+		}
+	}
+	if v, ok := payload["product_id"]; ok {
+		if f, ok2 := numFromAny(v); ok2 {
+			return int64(f), true
+		}
+	}
+	return 0, false
+}
+
+func shouldContinueCreateBugTry(err error) bool {
+	he, ok := IsAPIHTTPError(err)
+	if !ok {
+		return false
+	}
+	if he.Status == http.StatusNotFound || he.Status == http.StatusMethodNotAllowed {
+		return true
+	}
+	body := strings.ToLower(he.Body)
+	if !strings.Contains(body, "bugsentry::post") {
+		return false
+	}
+	return strings.Contains(body, "too few arguments") ||
+		strings.Contains(body, "argumentcounterror") ||
+		strings.Contains(body, "missing argument")
+}
+
+// APIGetTask fetches one task via API v1.
+func (c *APIClient) APIGetTask(ctx context.Context, token string, taskID int64) (map[string]any, error) {
+	if taskID <= 0 {
+		return nil, fmt.Errorf("invalid task id")
+	}
+	url := fmt.Sprintf("%s/api.php/v1/tasks/%d", c.BaseURL, taskID)
+	return c.apiJSON(ctx, http.MethodGet, url, token, nil)
+}
+
+// APIGetBug fetches one bug via API v1.
+func (c *APIClient) APIGetBug(ctx context.Context, token string, bugID int64) (map[string]any, error) {
+	if bugID <= 0 {
+		return nil, fmt.Errorf("invalid bug id")
+	}
+	url := fmt.Sprintf("%s/api.php/v1/bugs/%d", c.BaseURL, bugID)
+	return c.apiJSON(ctx, http.MethodGet, url, token, nil)
+}
+
+// APIGetEffort fetches one effort row via API v1.
+func (c *APIClient) APIGetEffort(ctx context.Context, token string, effortID int64) (map[string]any, error) {
+	if effortID <= 0 {
+		return nil, fmt.Errorf("invalid effort id")
+	}
+	url := fmt.Sprintf("%s/api.php/v1/efforts/%d", c.BaseURL, effortID)
+	return c.apiJSON(ctx, http.MethodGet, url, token, nil)
+}
+
+// APIUpdateTask updates task fields via API v1.
+// Supported payload keys are instance-dependent (e.g. assignedTo, pri, deadline, status, left, consumed).
+func (c *APIClient) APIUpdateTask(ctx context.Context, token string, taskID int64, payload map[string]any) (map[string]any, error) {
+	if taskID <= 0 {
+		return nil, fmt.Errorf("invalid task id")
+	}
+	if len(payload) == 0 {
+		return nil, fmt.Errorf("empty payload")
+	}
+	url := fmt.Sprintf("%s/api.php/v1/tasks/%d", c.BaseURL, taskID)
+	return c.apiJSON(ctx, http.MethodPatch, url, token, payload)
+}
+
+// APIUpdateBug updates bug fields via API v1.
+func (c *APIClient) APIUpdateBug(ctx context.Context, token string, bugID int64, payload map[string]any) (map[string]any, error) {
+	if bugID <= 0 {
+		return nil, fmt.Errorf("invalid bug id")
+	}
+	if len(payload) == 0 {
+		return nil, fmt.Errorf("empty payload")
+	}
+	url := fmt.Sprintf("%s/api.php/v1/bugs/%d", c.BaseURL, bugID)
+	return c.apiJSON(ctx, http.MethodPatch, url, token, payload)
+}
+
+// APIDeleteBug deletes a bug record via API v1.
+func (c *APIClient) APIDeleteBug(ctx context.Context, token string, bugID int64) error {
+	if bugID <= 0 {
+		return fmt.Errorf("invalid bug id")
+	}
+	url := fmt.Sprintf("%s/api.php/v1/bugs/%d", c.BaseURL, bugID)
+	_, err := c.apiJSON(ctx, http.MethodDelete, url, token, nil)
+	return err
+}
+
+// ExtractTaskAssignedTo pulls assigned-to account from common task response layouts.
+func ExtractTaskAssignedTo(resp map[string]any) string {
+	task := extractTaskMap(resp)
+	if task == nil {
+		return ""
+	}
+	return firstNonEmptyString(task, "assignedTo", "assigned_to")
+}
+
+// ExtractTaskStatus returns normalized task status from task response.
+func ExtractTaskStatus(resp map[string]any) string {
+	task := extractTaskMap(resp)
+	if task == nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(firstNonEmptyString(task, "status")))
+}
+
+// ExtractTaskDeadline returns YYYY-MM-DD from task response deadline fields.
+func ExtractTaskDeadline(resp map[string]any) string {
+	task := extractTaskMap(resp)
+	if task == nil {
+		return ""
+	}
+	return NormalizeDateYMD(firstNonEmptyString(task, "deadline", "deadline_date", "deadlineDate"))
+}
+
+// ExtractTaskPri returns task priority if present.
+func ExtractTaskPri(resp map[string]any) (int, bool) {
+	task := extractTaskMap(resp)
+	if task == nil {
+		return 0, false
+	}
+	for _, key := range []string{"pri", "priority"} {
+		if v, ok := task[key]; ok {
+			if f, ok2 := numFromAny(v); ok2 {
+				return int(f), true
+			}
+		}
+	}
+	return 0, false
+}
+
+// ExtractBugAssignedTo pulls bug assignee account from common bug response layouts.
+func ExtractBugAssignedTo(resp map[string]any) string {
+	bug := extractBugMap(resp)
+	if bug == nil {
+		return ""
+	}
+	return firstNonEmptyString(bug, "assignedTo", "assigned_to")
+}
+
+// ExtractBugTitle returns bug title.
+func ExtractBugTitle(resp map[string]any) string {
+	bug := extractBugMap(resp)
+	if bug == nil {
+		return ""
+	}
+	return strings.TrimSpace(firstNonEmptyString(bug, "title"))
+}
+
+// ExtractBugStatus returns normalized bug status from bug response.
+func ExtractBugStatus(resp map[string]any) string {
+	bug := extractBugMap(resp)
+	if bug == nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(firstNonEmptyString(bug, "status")))
+}
+
+// ExtractBugExecutionID returns execution id if present.
+func ExtractBugExecutionID(resp map[string]any) (int64, bool) {
+	bug := extractBugMap(resp)
+	if bug == nil {
+		return 0, false
+	}
+	for _, key := range []string{"execution", "executionID", "execution_id", "project"} {
+		if v, ok := bug[key]; ok {
+			if f, ok2 := numFromAny(v); ok2 {
+				return int64(f), true
+			}
+		}
+	}
+	return 0, false
+}
+
+// ExtractBugStoryID returns linked story id if present.
+func ExtractBugStoryID(resp map[string]any) (int64, bool) {
+	bug := extractBugMap(resp)
+	if bug == nil {
+		return 0, false
+	}
+	for _, key := range []string{"story", "storyID", "story_id"} {
+		if v, ok := bug[key]; ok {
+			if f, ok2 := numFromAny(v); ok2 {
+				return int64(f), true
+			}
+		}
+	}
+	return 0, false
+}
+
+// ExtractBugTaskID returns linked task id if present.
+func ExtractBugTaskID(resp map[string]any) (int64, bool) {
+	bug := extractBugMap(resp)
+	if bug == nil {
+		return 0, false
+	}
+	for _, key := range []string{"task", "taskID", "task_id"} {
+		if v, ok := bug[key]; ok {
+			if f, ok2 := numFromAny(v); ok2 {
+				return int64(f), true
+			}
+		}
+	}
+	return 0, false
+}
+
+// ExtractBugResolution returns normalized bug resolution code.
+func ExtractBugResolution(resp map[string]any) string {
+	bug := extractBugMap(resp)
+	if bug == nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(firstNonEmptyString(bug, "resolution")))
+}
+
+// ExtractBugSeverity returns bug severity if present.
+func ExtractBugSeverity(resp map[string]any) (int, bool) {
+	bug := extractBugMap(resp)
+	if bug == nil {
+		return 0, false
+	}
+	for _, key := range []string{"severity"} {
+		if v, ok := bug[key]; ok {
+			if f, ok2 := numFromAny(v); ok2 {
+				return int(f), true
+			}
+		}
+	}
+	return 0, false
+}
+
+// ExtractBugDeleted returns whether the bug has been marked deleted.
+func ExtractBugDeleted(resp map[string]any) bool {
+	bug := extractBugMap(resp)
+	if bug == nil {
+		return false
+	}
+	for _, key := range []string{"deleted", "is_deleted"} {
+		if v, ok := bug[key]; ok {
+			if b, ok2 := boolFromAny(v); ok2 {
+				return b
+			}
+		}
+	}
+	return false
+}
+
+// ExtractEffortTaskID returns task/object id from effort response.
+func ExtractEffortTaskID(resp map[string]any) (int64, bool) {
+	eff := extractEffortMap(resp)
+	if eff == nil {
+		return 0, false
+	}
+	for _, key := range []string{"objectID", "object_id", "task", "task_id"} {
+		if v, ok := eff[key]; ok {
+			if f, ok2 := numFromAny(v); ok2 {
+				return int64(f), true
+			}
+		}
+	}
+	return 0, false
+}
+
+// ExtractEffortWork returns normalized effort work text from effort response.
+func ExtractEffortWork(resp map[string]any) string {
+	eff := extractEffortMap(resp)
+	if eff == nil {
+		return ""
+	}
+	return strings.TrimSpace(firstNonEmptyString(eff, "work"))
+}
+
+// ExtractEffortDate returns YYYY-MM-DD from effort response date fields.
+func ExtractEffortDate(resp map[string]any) string {
+	eff := extractEffortMap(resp)
+	if eff == nil {
+		return ""
+	}
+	return NormalizeDateYMD(firstNonEmptyString(eff, "date", "work_date", "workDate"))
+}
+
+// ExtractEffortConsumed returns consumed hours from effort response.
+func ExtractEffortConsumed(resp map[string]any) (float64, bool) {
+	eff := extractEffortMap(resp)
+	if eff == nil {
+		return 0, false
+	}
+	for _, key := range []string{"consumed"} {
+		if v, ok := eff[key]; ok {
+			if f, ok2 := numFromAny(v); ok2 {
+				return f, true
+			}
+		}
+	}
+	return 0, false
+}
+
+// ExtractEffortLeft returns left hours from effort response.
+func ExtractEffortLeft(resp map[string]any) (float64, bool) {
+	eff := extractEffortMap(resp)
+	if eff == nil {
+		return 0, false
+	}
+	for _, key := range []string{"left"} {
+		if v, ok := eff[key]; ok {
+			if f, ok2 := numFromAny(v); ok2 {
+				return f, true
+			}
+		}
+	}
+	return 0, false
+}
+
+// NormalizeDateYMD trims and normalizes date-like strings to YYYY-MM-DD.
+func NormalizeDateYMD(raw string) string {
+	s := strings.TrimSpace(raw)
+	if len(s) >= 10 {
+		prefix := s[:10]
+		if _, err := time.Parse("2006-01-02", prefix); err == nil {
+			return prefix
+		}
+	}
+	if _, err := time.Parse("2006-01-02", s); err == nil {
+		return s
+	}
+	return ""
+}
+
+func firstNonEmptyString(m map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if v, ok := m[key].(string); ok {
+			if s := strings.TrimSpace(v); s != "" {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+func extractTaskMap(resp map[string]any) map[string]any {
+	if resp == nil {
+		return nil
+	}
+	if looksLikeTaskMap(resp) {
+		return resp
+	}
+	if m, ok := resp["task"].(map[string]any); ok {
+		return m
+	}
+	if m, ok := resp["data"].(map[string]any); ok {
+		if looksLikeTaskMap(m) {
+			return m
+		}
+		if mm, ok2 := m["task"].(map[string]any); ok2 {
+			return mm
+		}
+	}
+	return resp
+}
+
+func extractEffortMap(resp map[string]any) map[string]any {
+	if resp == nil {
+		return nil
+	}
+	if looksLikeEffortMap(resp) {
+		return resp
+	}
+	if m, ok := resp["effort"].(map[string]any); ok {
+		return m
+	}
+	if m, ok := resp["data"].(map[string]any); ok {
+		if looksLikeEffortMap(m) {
+			return m
+		}
+		if mm, ok2 := m["effort"].(map[string]any); ok2 {
+			return mm
+		}
+	}
+	return resp
+}
+
+func extractBugMap(resp map[string]any) map[string]any {
+	if resp == nil {
+		return nil
+	}
+	if looksLikeBugMap(resp) {
+		return resp
+	}
+	if m, ok := resp["bug"].(map[string]any); ok {
+		return m
+	}
+	if m, ok := resp["data"].(map[string]any); ok {
+		if looksLikeBugMap(m) {
+			return m
+		}
+		if mm, ok2 := m["bug"].(map[string]any); ok2 {
+			return mm
+		}
+	}
+	return resp
+}
+
+func looksLikeTaskMap(m map[string]any) bool {
+	if m == nil {
+		return false
+	}
+	_, hasName := m["name"]
+	_, hasStatus := m["status"]
+	_, hasAssigned := m["assignedTo"]
+	_, hasAssigned2 := m["assigned_to"]
+	return hasName || hasStatus || hasAssigned || hasAssigned2
+}
+
+func looksLikeBugMap(m map[string]any) bool {
+	if m == nil {
+		return false
+	}
+	_, hasTitle := m["title"]
+	_, hasStatus := m["status"]
+	_, hasAssigned := m["assignedTo"]
+	_, hasAssigned2 := m["assigned_to"]
+	_, hasSeverity := m["severity"]
+	return hasTitle || hasStatus || hasAssigned || hasAssigned2 || hasSeverity
+}
+
+func looksLikeEffortMap(m map[string]any) bool {
+	if m == nil {
+		return false
+	}
+	_, hasWork := m["work"]
+	_, hasConsumed := m["consumed"]
+	_, hasObject := m["objectID"]
+	_, hasObject2 := m["object_id"]
+	return hasWork || hasConsumed || hasObject || hasObject2
+}
+
+func boolFromAny(v any) (bool, bool) {
+	switch x := v.(type) {
+	case bool:
+		return x, true
+	case int:
+		return x != 0, true
+	case int64:
+		return x != 0, true
+	case float64:
+		return x != 0, true
+	case json.Number:
+		i, err := x.Int64()
+		if err == nil {
+			return i != 0, true
+		}
+	case string:
+		s := strings.ToLower(strings.TrimSpace(x))
+		switch s {
+		case "1", "true", "yes", "y":
+			return true, true
+		case "0", "false", "no", "n", "":
+			return false, true
+		}
+	}
+	return false, false
+}
+
+// APIUpdateEffort updates effort fields via API v1.
+// Official routes only expose POST/GET on /tasks/{taskID}/estimate; some builds add
+// /tasks/{taskID}/estimate/{effortID}. /efforts/{id} is not in stock apiv1.php.
+func (c *APIClient) APIUpdateEffort(ctx context.Context, token string, taskID, effortID int64, payload map[string]any) (map[string]any, error) {
+	if effortID <= 0 {
+		return nil, fmt.Errorf("invalid effort id")
+	}
+	if len(payload) == 0 {
+		return nil, fmt.Errorf("empty payload")
+	}
+	var lastErr error
+	if taskID > 0 {
+		for _, method := range []string{http.MethodPut, http.MethodPatch} {
+			u := fmt.Sprintf("%s/api.php/v1/tasks/%d/estimate/%d", c.BaseURL, taskID, effortID)
+			out, err := c.apiJSON(ctx, method, u, token, payload)
+			if err == nil {
+				return out, nil
+			}
+			lastErr = err
+			if he, ok := IsAPIHTTPError(err); ok && isEffortAPIMissing(he.Status) {
+				continue
+			}
+			return nil, err
+		}
+	}
+	u := fmt.Sprintf("%s/api.php/v1/efforts/%d", c.BaseURL, effortID)
+	out, err := c.apiJSON(ctx, http.MethodPatch, u, token, payload)
+	if err == nil {
+		return out, nil
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, err
+}
+
+// APIDeleteEffort deletes an effort record via API v1 (best-effort URL variants).
+func (c *APIClient) APIDeleteEffort(ctx context.Context, token string, taskID, effortID int64) error {
+	if effortID <= 0 {
+		return fmt.Errorf("invalid effort id")
+	}
+	var lastErr error
+	if taskID > 0 {
+		for _, method := range []string{http.MethodDelete, http.MethodPost} {
+			u := fmt.Sprintf("%s/api.php/v1/tasks/%d/estimate/%d", c.BaseURL, taskID, effortID)
+			_, err := c.apiJSON(ctx, method, u, token, nil)
+			if err == nil {
+				return nil
+			}
+			lastErr = err
+			if he, ok := IsAPIHTTPError(err); ok && isEffortAPIMissing(he.Status) {
+				continue
+			}
+			return err
+		}
+	}
+	u := fmt.Sprintf("%s/api.php/v1/efforts/%d", c.BaseURL, effortID)
+	_, err := c.apiJSON(ctx, http.MethodDelete, u, token, nil)
+	if err == nil {
+		return nil
+	}
+	if lastErr != nil {
+		return lastErr
+	}
+	return err
+}
+
+func isEffortAPIMissing(status int) bool {
+	return status == http.StatusNotFound || status == http.StatusMethodNotAllowed
+}
+
+// IsEffortAPIMissing reports whether an API error indicates the write endpoint is absent.
+func IsEffortAPIMissing(err error) bool {
+	if he, ok := IsAPIHTTPError(err); ok {
+		return isEffortAPIMissing(he.Status)
+	}
+	return false
+}
+
+func isBugAPIMissing(status int) bool {
+	return status == http.StatusNotFound || status == http.StatusMethodNotAllowed
+}
+
+// IsBugAPIMissing reports whether an API error indicates the bug write endpoint is absent.
+func IsBugAPIMissing(err error) bool {
+	if he, ok := IsAPIHTTPError(err); ok {
+		return isBugAPIMissing(he.Status)
+	}
+	return false
+}
+
+func (c *APIClient) apiJSON(ctx context.Context, method, url, token string, payload map[string]any) (map[string]any, error) {
+	var body io.Reader
+	if payload != nil {
+		buf, err := json.Marshal(payload)
+		if err != nil {
+			return nil, err
+		}
+		body = bytes.NewReader(buf)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Token", token)
+	if payload != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 128*1024))
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, errAPIUnauthorized
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, &APIHTTPError{Status: resp.StatusCode, URL: url, Body: snippet(string(raw))}
+	}
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return map[string]any{"ok": true}, nil
+	}
+	var out map[string]any
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return map[string]any{"raw": snippet(string(raw))}, nil
+	}
+	if errVal, ok := out["error"].(string); ok && strings.TrimSpace(errVal) != "" {
+		return nil, &APIHTTPError{Status: resp.StatusCode, URL: url, Body: snippet(string(raw))}
+	}
+	return out, nil
 }
 
 func snippet(s string) string {

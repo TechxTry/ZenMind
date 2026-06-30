@@ -43,16 +43,17 @@ func upsertEffortRows(rows []source.ZtEffort, now time.Time) int {
 
 // SyncEffortsDailyReconcile upserts all zt_effort rows whose work date falls in the window,
 // plus any local_efforts in that window (covers date edits that moved a row out of the window).
-func SyncEffortsDailyReconcile(dayWindow int) {
+// Returns the number of rows upserted.
+func SyncEffortsDailyReconcile(dayWindow int) int {
 	dayWindow = config.ClampEffortReconcileDays(dayWindow)
 	cfg, ok := tableConfig("local_efforts")
 	if !ok {
-		return
+		return 0
 	}
 	ztDB := db.GetZentao()
 	if ztDB == nil {
 		log.Println("[etl] SyncEffortsDailyReconcile: Zentao DB not connected, skipping")
-		return
+		return 0
 	}
 
 	from, to := effortReconcileDateRange(dayWindow)
@@ -65,7 +66,7 @@ func SyncEffortsDailyReconcile(dayWindow int) {
 	}
 	if err := qDate.Find(&byDate).Error; err != nil {
 		log.Printf("[etl] SyncEffortsDailyReconcile(%s) by-date query error: %v", cfg.Source, err)
-		return
+		return 0
 	}
 
 	var localIDs []int64
@@ -73,7 +74,7 @@ func SyncEffortsDailyReconcile(dayWindow int) {
 		Where("work_date >= ? AND work_date <= ?", from, to).
 		Pluck("id", &localIDs).Error; err != nil {
 		log.Printf("[etl] SyncEffortsDailyReconcile: local id list error: %v", err)
-		return
+		return 0
 	}
 
 	byID := make(map[int64]source.ZtEffort, len(byDate)+len(localIDs))
@@ -94,7 +95,7 @@ func SyncEffortsDailyReconcile(dayWindow int) {
 		}
 		if err := qID.Find(&rows).Error; err != nil {
 			log.Printf("[etl] SyncEffortsDailyReconcile(%s) by-id batch error: %v", cfg.Source, err)
-			return
+			return 0
 		}
 		for _, r := range rows {
 			byID[r.ID] = r
@@ -112,4 +113,5 @@ func SyncEffortsDailyReconcile(dayWindow int) {
 		cfg.Source, cfg.Name, n, len(byDate), len(localIDs), dayWindow,
 		from.Format("2006-01-02"), to.Format("2006-01-02"),
 	)
+	return n
 }

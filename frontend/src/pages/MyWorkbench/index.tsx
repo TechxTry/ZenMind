@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   Button,
@@ -13,8 +13,10 @@ import {
   InputNumber,
   List,
   Modal,
+  Popconfirm,
   Select,
   Space,
+  Spin,
   Tabs,
   Table,
   Tag,
@@ -27,14 +29,18 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { CalendarAggregate, CalendarExternalEvent } from '../../api'
 import {
   createZentaoEffort,
+  deleteZentaoEffort,
   getBusinessConfig,
   getCalendarAggregate,
   getZentaoAuthStatus,
   getSyncSettings,
   getSyncStatus,
+  getTask,
   listEfforts,
   listTasks,
+  updateZentaoEffort,
 } from '../../api'
+import { taskStatusLabel } from '../Workbench/workbenchDisplay'
 import { useAuthStore } from '../../store/auth'
 import {
   CALENDAR_CATEGORY_COLORS,
@@ -104,6 +110,9 @@ const STATUS_OPTIONS = [
   { value: 'closed', label: '已关闭' },
 ]
 
+/** 快捷报工任务下拉：按状态分页，滚动加载更多 */
+const QUICK_EFFORT_TASK_PAGE_SIZE = 20
+
 const MY_WORKBENCH_TASK_COLUMN_METAS: ColumnMeta[] = [
   { key: 'actions', title: '报工', defaultWidth: 88 },
   { key: 'id', title: 'ID', defaultWidth: 70 },
@@ -118,6 +127,7 @@ const MY_WORKBENCH_EFFORT_COLUMN_METAS: ColumnMeta[] = [
   { key: 'consumed', title: '耗时(h)', defaultWidth: 90 },
   { key: 'work', title: '工作内容', defaultWidth: 200 },
   { key: 'object_id', title: '任务', defaultWidth: 90 },
+  { key: 'actions', title: '操作', defaultWidth: 120 },
 ]
 
 const statusColor: Record<string, string> = {
@@ -177,6 +187,11 @@ const MyWorkbenchPage: React.FC = () => {
   const [tasksTotal, setTasksTotal] = useState(0)
   const [tasksLoading, setTasksLoading] = useState(false)
   const [tasks, setTasks] = useState<TaskRow[]>([])
+  const [quickEffortTasks, setQuickEffortTasks] = useState<TaskRow[]>([])
+  const [quickEffortTasksPage, setQuickEffortTasksPage] = useState(1)
+  const [quickEffortTasksTotal, setQuickEffortTasksTotal] = useState(0)
+  const [quickEffortTasksLoading, setQuickEffortTasksLoading] = useState(false)
+  const [quickEffortTasksLoadingMore, setQuickEffortTasksLoadingMore] = useState(false)
 
   const [tasksLastSyncedAt, setTasksLastSyncedAt] = useState<string | null>(null)
   const [syncIntervalMinutes, setSyncIntervalMinutes] = useState<number>(15)
@@ -193,10 +208,16 @@ const MyWorkbenchPage: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerTaskId, setDrawerTaskId] = useState<number | undefined>()
   const [submitting, setSubmitting] = useState(false)
+  const [editingEffort, setEditingEffort] = useState<EffortRow | null>(null)
+  const [effortEditSubmitting, setEffortEditSubmitting] = useState(false)
   const [form] = Form.useForm()
+  const [effortEditForm] = Form.useForm()
+  /** 打开抽屉时 setFieldsValue 会触发 onValuesChange，避免误清空已选任务 */
+  const skipQuickTaskStatusEffectRef = useRef(false)
 
   // --- 快速报工（Drawer）联动 ---
   const watchedTaskId = Form.useWatch<number | undefined>('task_id', form)
+  const watchedQuickTaskStatus = Form.useWatch<string>('quick_task_status', form)
   const watchedWorkDate = Form.useWatch<Dayjs | null>('work_date', form)
   const watchedConsumed = Form.useWatch<number | undefined>('consumed', form)
   const watchedLeft = Form.useWatch<number | undefined>('left', form)
@@ -214,8 +235,8 @@ const MyWorkbenchPage: React.FC = () => {
   const selectedQuickTask = useMemo(() => {
     const tid = Number(watchedTaskId ?? 0)
     if (!Number.isFinite(tid) || tid <= 0) return null
-    return tasks.find((t) => t.id === tid) ?? null
-  }, [watchedTaskId, tasks])
+    return quickEffortTasks.find((t) => t.id === tid) ?? tasks.find((t) => t.id === tid) ?? null
+  }, [watchedTaskId, quickEffortTasks, tasks])
 
   const selectedTaskRemainingHours = useMemo(() => {
     if (!selectedQuickTask) return 0
@@ -259,26 +280,6 @@ const MyWorkbenchPage: React.FC = () => {
     const taskLeft = estimate - taskConsumed - consumedThis
     return estimate > 0 && Number.isFinite(taskLeft) && taskLeft <= 0
   }, [selectedQuickTask, watchedConsumed])
-
-  const handleQuickFormValuesChange = useCallback(
-    (_changed: any, all: any) => {
-      const tid = Number(all?.task_id ?? NaN)
-      const consumedInput = Number(all?.consumed ?? NaN)
-      if (!Number.isFinite(tid) || tid <= 0) return
-      if (!Number.isFinite(consumedInput)) return
-      const t = tasks.find((x) => x.id === tid)
-      if (!t) return
-
-      const raw = dailyStandardHours - consumedInput - quickDayHours
-      const nextLeft = Math.max(0, roundToHalfHour(raw))
-
-      const cur = Number(form.getFieldValue('left') ?? 0)
-      if (!Number.isFinite(cur) || Math.abs(cur - nextLeft) > 1e-9) {
-        form.setFieldsValue({ left: nextLeft })
-      }
-    },
-    [tasks, form, dailyStandardHours, quickDayHours],
-  )
 
   useEffect(() => {
     const cur = Number(watchedLeft ?? 0)
@@ -333,8 +334,13 @@ const MyWorkbenchPage: React.FC = () => {
   const [dayDetailModalOpen, setDayDetailModalOpen] = useState(false)
 
   const taskOptions = useMemo(() => {
-    return (tasks ?? []).map((t) => ({ value: t.id, label: `${t.id} · ${t.name}` }))
-  }, [tasks])
+    return (quickEffortTasks ?? []).map((t) => ({
+      value: t.id,
+      label: `${t.id} · ${t.name}`,
+    }))
+  }, [quickEffortTasks])
+
+  const quickEffortTasksHasMore = quickEffortTasks.length < quickEffortTasksTotal
 
   const taskNameById = useMemo(() => {
     const m = new Map<number, string>()
@@ -381,6 +387,109 @@ const MyWorkbenchPage: React.FC = () => {
       setTasksLoading(false)
     }
   }
+
+  const loadQuickEffortTasks = useCallback(async (
+    account: string,
+    taskStatus: string,
+    page: number,
+    options?: { append?: boolean; silent?: boolean },
+  ) => {
+    if (!account || !taskStatus) {
+      setQuickEffortTasks([])
+      setQuickEffortTasksTotal(0)
+      setQuickEffortTasksPage(1)
+      return
+    }
+    const append = options?.append ?? false
+    if (append) {
+      setQuickEffortTasksLoadingMore(true)
+    } else {
+      setQuickEffortTasksLoading(true)
+    }
+    try {
+      const res = await listTasks({
+        my_binding: 1,
+        status: taskStatus,
+        page,
+        page_size: QUICK_EFFORT_TASK_PAGE_SIZE,
+      })
+      const rows = (res?.data ?? []) as TaskRow[]
+      const total = typeof res?.total === 'number' ? res.total : rows.length
+      setQuickEffortTasksPage(page)
+      setQuickEffortTasksTotal(total)
+      setQuickEffortTasks((prev) => {
+        if (!append) return rows
+        const seen = new Set(prev.map((t) => t.id))
+        return [...prev, ...rows.filter((r) => !seen.has(r.id))]
+      })
+    } catch (e: any) {
+      if (!options?.silent) message.error(e.response?.data?.error ?? '加载任务失败')
+      if (!append) {
+        setQuickEffortTasks([])
+        setQuickEffortTasksTotal(0)
+        setQuickEffortTasksPage(1)
+      }
+    } finally {
+      if (append) {
+        setQuickEffortTasksLoadingMore(false)
+      } else {
+        setQuickEffortTasksLoading(false)
+      }
+    }
+  }, [])
+
+  const handleQuickTaskPopupScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const taskStatus = watchedQuickTaskStatus ?? 'doing'
+      if (!bindingAccount || !taskStatus) return
+      if (quickEffortTasksLoading || quickEffortTasksLoadingMore) return
+      if (!quickEffortTasksHasMore) return
+      const el = e.target as HTMLDivElement
+      if (el.scrollTop + el.offsetHeight < el.scrollHeight - 32) return
+      void loadQuickEffortTasks(bindingAccount, taskStatus, quickEffortTasksPage + 1, {
+        append: true,
+        silent: true,
+      })
+    },
+    [
+      bindingAccount,
+      watchedQuickTaskStatus,
+      quickEffortTasksLoading,
+      quickEffortTasksLoadingMore,
+      quickEffortTasksHasMore,
+      quickEffortTasksPage,
+      loadQuickEffortTasks,
+    ],
+  )
+
+  const handleQuickFormValuesChange = useCallback(
+    (changed: Record<string, unknown>, all: Record<string, unknown>) => {
+      if (changed.quick_task_status !== undefined) {
+        if (skipQuickTaskStatusEffectRef.current) return
+        const nextStatus = String(all.quick_task_status ?? 'doing')
+        form.setFieldsValue({ task_id: undefined })
+        setDrawerTaskId(undefined)
+        void loadQuickEffortTasks(bindingAccount, nextStatus, 1)
+        return
+      }
+
+      const tid = Number(all?.task_id ?? NaN)
+      const consumedInput = Number(all?.consumed ?? NaN)
+      if (!Number.isFinite(tid) || tid <= 0) return
+      if (!Number.isFinite(consumedInput)) return
+      const t = quickEffortTasks.find((x) => x.id === tid) ?? tasks.find((x) => x.id === tid)
+      if (!t) return
+
+      const raw = dailyStandardHours - consumedInput - quickDayHours
+      const nextLeft = Math.max(0, roundToHalfHour(raw))
+
+      const cur = Number(form.getFieldValue('left') ?? 0)
+      if (!Number.isFinite(cur) || Math.abs(cur - nextLeft) > 1e-9) {
+        form.setFieldsValue({ left: nextLeft })
+      }
+    },
+    [bindingAccount, quickEffortTasks, tasks, form, dailyStandardHours, quickDayHours, loadQuickEffortTasks],
+  )
 
   const refreshTodayEfforts = async (account: string, silent = false) => {
     if (!account) {
@@ -539,15 +648,6 @@ const MyWorkbenchPage: React.FC = () => {
   }, [syncHintLoading, tasksLastSyncedAt, syncIntervalMinutes])
 
   useEffect(() => {
-    const sp = new URLSearchParams(location.search)
-    const raw = sp.get('task_id')
-    const n = raw ? Number(raw) : NaN
-    if (Number.isFinite(n) && n > 0) {
-      openDrawer(Math.trunc(n))
-    }
-  }, [location.search])
-
-  useEffect(() => {
     void refreshTasks(bindingAccount, tasksPage, tasksPageSize)
   }, [bindingAccount, status, tasksPage, tasksPageSize])
 
@@ -560,21 +660,59 @@ const MyWorkbenchPage: React.FC = () => {
     void refreshAggregate()
   }, [refreshAggregate, bindingAccount])
 
-  const openDrawer = (taskId?: number) => {
-    setDrawerTaskId(taskId)
-    setDrawerOpen(true)
+  const openDrawer = useCallback(async (taskId?: number) => {
+    let statusForLoad = 'doing'
+    let pinnedRow: TaskRow | null = null
+    if (taskId && taskId > 0) {
+      try {
+        pinnedRow = (await getTask(taskId, { my_binding: 1 })) as TaskRow
+        if (pinnedRow.status) statusForLoad = pinnedRow.status
+      } catch {
+        // 深链任务不可见时仍打开抽屉，由用户重选
+      }
+    }
 
     const consumedDefault = 1
     const nextLeft = roundToHalfHour(dailyStandardHours - consumedDefault - quickDayHours)
 
+    skipQuickTaskStatusEffectRef.current = true
     form.setFieldsValue({
+      quick_task_status: statusForLoad,
       task_id: taskId,
       work_date: dayjs(),
       consumed: consumedDefault,
       left: Math.max(0, nextLeft),
       work: '',
     })
-  }
+    skipQuickTaskStatusEffectRef.current = false
+    setDrawerTaskId(taskId)
+    setDrawerOpen(true)
+
+    if (!bindingAccount) {
+      setQuickEffortTasks([])
+      setQuickEffortTasksTotal(0)
+      setQuickEffortTasksPage(1)
+      return
+    }
+    await loadQuickEffortTasks(bindingAccount, statusForLoad, 1, { silent: true })
+    if (pinnedRow) {
+      setQuickEffortTasks((prev) => {
+        if (prev.some((t) => t.id === pinnedRow!.id)) return prev
+        return [pinnedRow!, ...prev]
+      })
+    }
+  }, [bindingAccount, dailyStandardHours, form, loadQuickEffortTasks, quickDayHours])
+
+  useEffect(() => {
+    const sp = new URLSearchParams(location.search)
+    const raw = sp.get('task_id')
+    const n = raw ? Number(raw) : NaN
+    if (Number.isFinite(n) && n > 0) {
+      openDrawer(Math.trunc(n))
+    }
+    // 仅响应 URL 中的 task_id，避免 openDrawer 依赖变化时重复弹窗
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search])
 
   const applyOptimisticEffort = useCallback((payload: {
     task_id: number
@@ -592,7 +730,9 @@ const MyWorkbenchPage: React.FC = () => {
       work: String(payload.work ?? ''),
       object_type: 'task',
       object_id: taskId,
-      object_title: tasks.find((t) => t.id === taskId)?.name,
+      object_title:
+        quickEffortTasks.find((t) => t.id === taskId)?.name
+        ?? tasks.find((t) => t.id === taskId)?.name,
     }
 
     if (workDate === today) {
@@ -612,7 +752,14 @@ const MyWorkbenchPage: React.FC = () => {
         consumed: Number(task.consumed ?? 0) + optimisticRow.consumed,
       }
     }))
-  }, [today, tasks])
+    setQuickEffortTasks((prev) => prev.map((task) => {
+      if (task.id !== optimisticRow.object_id) return task
+      return {
+        ...task,
+        consumed: Number(task.consumed ?? 0) + optimisticRow.consumed,
+      }
+    }))
+  }, [today, tasks, quickEffortTasks])
 
   const refreshAfterEffortSubmit = useCallback(async (account: string, page: number, pageSize: number) => {
     await Promise.allSettled([
@@ -670,6 +817,55 @@ const MyWorkbenchPage: React.FC = () => {
       }
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const openEditEffort = (row: EffortRow) => {
+    setEditingEffort(row)
+    effortEditForm.setFieldsValue({
+      work_date: row.work_date ? dayjs(row.work_date) : dayjs(),
+      work: row.work,
+      consumed: row.consumed,
+    })
+  }
+
+  const handleEditEffortSubmit = async () => {
+    if (!editingEffort) return
+    const v = await effortEditForm.validateFields()
+    setEffortEditSubmitting(true)
+    try {
+      await updateZentaoEffort(editingEffort.id, {
+        work_date: v.work_date ? dayjs(v.work_date).format('YYYY-MM-DD') : undefined,
+        work: String(v.work ?? '').trim(),
+        consumed: Number(v.consumed),
+      })
+      message.success('报工已更新')
+      setEditingEffort(null)
+      void Promise.allSettled([
+        refreshTodayEfforts(bindingAccount, true),
+        refreshAggregate(true),
+        refreshTasks(bindingAccount, tasksPage, tasksPageSize, true),
+      ])
+    } catch (e: any) {
+      const data = e?.response?.data
+      message.error(data?.error ?? '更新报工失败')
+    } finally {
+      setEffortEditSubmitting(false)
+    }
+  }
+
+  const handleDeleteEffort = async (row: EffortRow) => {
+    try {
+      await deleteZentaoEffort(row.id)
+      message.success('报工已删除')
+      void Promise.allSettled([
+        refreshTodayEfforts(bindingAccount, true),
+        refreshAggregate(true),
+        refreshTasks(bindingAccount, tasksPage, tasksPageSize, true),
+      ])
+    } catch (e: any) {
+      const data = e?.response?.data
+      message.error(data?.error ?? '删除报工失败')
     }
   }
 
@@ -788,7 +984,9 @@ const MyWorkbenchPage: React.FC = () => {
         title: '状态',
         dataIndex: 'status',
         width: 100,
-        render: (v: string) => <Tag color={statusColor[v] ?? 'default'}>{v}</Tag>,
+        render: (v: string) => (
+          <Tag color={statusColor[v] ?? 'default'}>{taskStatusLabel(v)}</Tag>
+        ),
       },
       { key: 'estimate', title: '预估(h)', dataIndex: 'estimate', width: 90 },
       { key: 'consumed', title: '消耗(h)', dataIndex: 'consumed', width: 90 },
@@ -813,8 +1011,27 @@ const MyWorkbenchPage: React.FC = () => {
         render: (v: string) => <Text style={{ color: 'var(--zm-text-secondary)' }}>{v}</Text>,
       },
       { key: 'object_id', title: '任务', dataIndex: 'object_id', width: 90 },
+      {
+        key: 'actions',
+        title: '操作',
+        width: 120,
+        render: (_: unknown, row: EffortRow) => (
+          <Space size={4}>
+            <Button size="small" onClick={() => openEditEffort(row)}>编辑</Button>
+            <Popconfirm
+              title="确认删除该条报工？"
+              description="删除后会同步到禅道。"
+              onConfirm={() => void handleDeleteEffort(row)}
+              okText="删除"
+              cancelText="取消"
+            >
+              <Button danger size="small">删除</Button>
+            </Popconfirm>
+          </Space>
+        ),
+      },
     ],
-    [],
+    [bindingAccount, tasksPage, tasksPageSize],
   )
 
   const {
@@ -1263,23 +1480,66 @@ const MyWorkbenchPage: React.FC = () => {
             当前日期已报工{' '}
             <b>{quickDayHoursLoading ? '计算中…' : `${quickDayHours.toFixed(1)}h`}</b>
           </div>
-          <Form.Item
-            name="task_id"
-            label="任务"
-            rules={[{ required: true, message: '请选择任务' }]}
-          >
-            <Select
-              options={taskOptions}
-              placeholder="请选择任务"
-              showSearch
-              optionFilterProp="label"
-              onChange={(v) => {
-                const tid = Number(v)
-                setDrawerTaskId(tid)
-                form.setFieldsValue({ task_id: tid })
-              }}
-            />
-          </Form.Item>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 24 }}>
+            <Form.Item
+              name="quick_task_status"
+              label="任务状态"
+              initialValue="doing"
+              rules={[{ required: true, message: '请选择状态' }]}
+              style={{ marginBottom: 0, flex: '0 0 auto' }}
+            >
+              <Select options={STATUS_OPTIONS} style={{ width: 108 }} />
+            </Form.Item>
+            <Form.Item
+              name="task_id"
+              label="任务"
+              rules={[{ required: true, message: '请选择任务' }]}
+              style={{ marginBottom: 0, flex: 1, minWidth: 0 }}
+            >
+              <Select
+                options={taskOptions}
+                placeholder={quickEffortTasksLoading ? '加载中…' : '请选择任务'}
+                showSearch
+                loading={quickEffortTasksLoading}
+                optionFilterProp="label"
+                style={{ width: '100%' }}
+                onPopupScroll={handleQuickTaskPopupScroll}
+                notFoundContent={
+                  quickEffortTasksLoading ? <Spin size="small" /> : '当前状态下暂无任务'
+                }
+                dropdownRender={(menu) => (
+                  <>
+                    {menu}
+                    {quickEffortTasksLoadingMore ? (
+                      <div style={{ padding: '8px 12px', textAlign: 'center' }}>
+                        <Spin size="small" />
+                      </div>
+                    ) : null}
+                    {!quickEffortTasksLoading
+                      && !quickEffortTasksLoadingMore
+                      && quickEffortTasks.length > 0
+                      && !quickEffortTasksHasMore ? (
+                      <div
+                        style={{
+                          padding: '6px 12px 8px',
+                          textAlign: 'center',
+                          color: 'var(--zm-text-muted)',
+                          fontSize: 12,
+                        }}
+                      >
+                        已加载全部 {quickEffortTasksTotal} 条
+                      </div>
+                    ) : null}
+                  </>
+                )}
+                onChange={(v) => {
+                  const tid = Number(v)
+                  setDrawerTaskId(tid)
+                  form.setFieldsValue({ task_id: tid })
+                }}
+              />
+            </Form.Item>
+          </div>
           {selectedQuickTask ? (
             <div style={{ marginTop: -2, marginBottom: 12 }}>
               <div
@@ -1347,7 +1607,13 @@ const MyWorkbenchPage: React.FC = () => {
             </div>
           ) : null}
           <Form.Item name="work_date" label="日期">
-            <DatePicker style={{ width: '100%' }} />
+            <DatePicker
+              style={{ width: '100%' }}
+              disabledDate={(current) => {
+                if (!current) return false
+                return current.isAfter(dayjs().endOf('day'))
+              }}
+            />
           </Form.Item>
           <Form.Item
             name="work"
@@ -1374,6 +1640,27 @@ const MyWorkbenchPage: React.FC = () => {
           </div>
         </Form>
       </Drawer>
+
+      <Modal
+        title="编辑报工"
+        open={!!editingEffort}
+        onCancel={() => setEditingEffort(null)}
+        onOk={() => void handleEditEffortSubmit()}
+        confirmLoading={effortEditSubmitting}
+        destroyOnClose
+      >
+        <Form form={effortEditForm} layout="vertical">
+          <Form.Item name="work_date" label="日期" rules={[{ required: true, message: '请选择日期' }]}>
+            <DatePicker style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="work" label="工作内容" rules={[{ required: true, message: '请输入工作内容' }]}>
+            <Input.TextArea rows={4} />
+          </Form.Item>
+          <Form.Item name="consumed" label="耗时(h)" rules={[{ required: true, message: '请输入耗时' }]}>
+            <InputNumber min={0} step={0.5} style={{ width: '100%' }} />
+          </Form.Item>
+        </Form>
+      </Modal>
 
     </div>
   )

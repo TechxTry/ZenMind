@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import {
-  Typography, Button, Table, Space, DatePicker, Tag, Tooltip, Modal, message, Descriptions, Collapse, Tabs,
+  Typography, Button, Table, Space, DatePicker, Tag, Tooltip, Modal, message, Descriptions, Collapse, Tabs, Form, Input, InputNumber, Select, Popconfirm,
 } from 'antd'
 import { ArrowLeftOutlined, EyeOutlined, LinkOutlined, SearchOutlined } from '@ant-design/icons'
 import JsonView from '@uiw/react-json-view'
 import dayjs, { Dayjs } from 'dayjs'
-import { getTask, getZentaoAPIConfig, listEfforts } from '../../api'
+import { deleteZentaoEffort, getTask, getZentaoAPIConfig, listEfforts, updateZentaoEffort, updateZentaoTask } from '../../api'
 import { useAuthStore } from '../../store/auth'
 import { buildZentaoTaskViewUrl } from '../../utils/zentaoUrls'
 import { taskTypeLabel, taskStatusLabel, useMemberPersonDisplay } from './workbenchDisplay'
@@ -188,11 +188,17 @@ const TaskDetailPage: React.FC = () => {
   const [page, setPage] = useState(1)
   const [effortLoading, setEffortLoading] = useState(false)
   const [rawData, setRawData] = useState<object | null>(null)
+  const [editingEffort, setEditingEffort] = useState<any | null>(null)
+  const [editingTaskOpen, setEditingTaskOpen] = useState(false)
+  const [savingEffort, setSavingEffort] = useState(false)
+  const [savingTask, setSavingTask] = useState(false)
   const [zentaoBaseUrl, setZentaoBaseUrl] = useState('')
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>(() => [
     dayjs().subtract(89, 'day'),
     dayjs(),
   ])
+  const [effortForm] = Form.useForm()
+  const [taskForm] = Form.useForm()
 
   useEffect(() => {
     getZentaoAPIConfig()
@@ -265,6 +271,81 @@ const TaskDetailPage: React.FC = () => {
     void loadEfforts()
   }
 
+  const openEffortEditor = (row: any) => {
+    setEditingEffort(row)
+    effortForm.setFieldsValue({
+      work_date: row.work_date ? dayjs(row.work_date) : dayjs(),
+      work: row.work,
+      consumed: row.consumed,
+    })
+  }
+
+  const submitEffortEdit = async () => {
+    if (!editingEffort) return
+    const values = await effortForm.validateFields()
+    setSavingEffort(true)
+    try {
+      await updateZentaoEffort(Number(editingEffort.id), {
+        work_date: values.work_date ? dayjs(values.work_date).format('YYYY-MM-DD') : undefined,
+        work: String(values.work ?? '').trim(),
+        consumed: Number(values.consumed),
+      })
+      message.success('报工已更新')
+      setEditingEffort(null)
+      void Promise.all([loadEfforts(), loadTask()])
+    } catch (e: any) {
+      message.error(e?.response?.data?.error ?? '更新报工失败')
+    } finally {
+      setSavingEffort(false)
+    }
+  }
+
+  const handleDeleteEffort = async (row: any) => {
+    try {
+      await deleteZentaoEffort(Number(row.id))
+      message.success('报工已删除')
+      void Promise.all([loadEfforts(), loadTask()])
+    } catch (e: any) {
+      message.error(e?.response?.data?.error ?? '删除报工失败')
+    }
+  }
+
+  const openTaskEditor = () => {
+    if (!task) return
+    setEditingTaskOpen(true)
+    taskForm.setFieldsValue({
+      assigned_to: task.assigned_to ? String(task.assigned_to) : undefined,
+      pri: typeof task.pri === 'number' ? task.pri : undefined,
+      deadline: task.deadline_date ? dayjs(String(task.deadline_date)) : undefined,
+      status: task.status ? String(task.status) : undefined,
+    })
+  }
+
+  const submitTaskEdit = async () => {
+    if (!task) return
+    const values = await taskForm.validateFields()
+    const payload: any = {}
+    if (values.assigned_to) payload.assigned_to = String(values.assigned_to).trim()
+    if (typeof values.pri === 'number') payload.pri = values.pri
+    if (values.deadline) payload.deadline = dayjs(values.deadline).format('YYYY-MM-DD')
+    if (values.status) payload.status = String(values.status)
+    if (Object.keys(payload).length === 0) {
+      message.warning('请至少修改一项')
+      return
+    }
+    setSavingTask(true)
+    try {
+      await updateZentaoTask(taskId, payload)
+      message.success('任务已更新')
+      setEditingTaskOpen(false)
+      void loadTask()
+    } catch (e: any) {
+      message.error(e?.response?.data?.error ?? '更新任务失败')
+    } finally {
+      setSavingTask(false)
+    }
+  }
+
   const zentaoTaskUrl = task
     ? buildZentaoTaskViewUrl(zentaoBaseUrl, taskId, task.execution_id as number | undefined)
     : null
@@ -283,15 +364,27 @@ const TaskDetailPage: React.FC = () => {
     {
       title: '',
       key: 'actions',
-      width: 60,
+      width: 160,
       render: (_: unknown, row: any) => (
-        <Tooltip title="查看原始数据">
-          <Button
-            size="small" type="text" icon={<EyeOutlined />}
-            style={{ color: 'var(--zm-text-muted)' }}
-            onClick={() => setRawData(row.raw_data ?? row)}
-          />
-        </Tooltip>
+        <Space size={4}>
+          <Button size="small" onClick={() => openEffortEditor(row)}>编辑</Button>
+          <Popconfirm
+            title="确认删除这条报工？"
+            description="删除将同步到禅道。"
+            onConfirm={() => void handleDeleteEffort(row)}
+            okText="删除"
+            cancelText="取消"
+          >
+            <Button danger size="small">删除</Button>
+          </Popconfirm>
+          <Tooltip title="查看原始数据">
+            <Button
+              size="small" type="text" icon={<EyeOutlined />}
+              style={{ color: 'var(--zm-text-muted)' }}
+              onClick={() => setRawData(row.raw_data ?? row)}
+            />
+          </Tooltip>
+        </Space>
       ),
     },
   ]
@@ -362,6 +455,7 @@ const TaskDetailPage: React.FC = () => {
                 <Text type="secondary">指派 {personOf(String(task.assigned_to ?? ''))}</Text>
                 <Text type="secondary">预估(h) {String(task.estimate ?? '-')}</Text>
                 <Text type="secondary">消耗(h) {String(task.consumed ?? '-')}</Text>
+                <Button size="small" onClick={openTaskEditor}>编辑任务</Button>
               </Space>
             </Space>
           </div>
@@ -439,6 +533,59 @@ const TaskDetailPage: React.FC = () => {
         </>
       )}
       <RawDataModal data={rawData} onClose={() => setRawData(null)} />
+      <Modal
+        title="编辑报工"
+        open={!!editingEffort}
+        onCancel={() => setEditingEffort(null)}
+        onOk={() => void submitEffortEdit()}
+        confirmLoading={savingEffort}
+        destroyOnClose
+      >
+        <Form form={effortForm} layout="vertical">
+          <Form.Item name="work_date" label="日期" rules={[{ required: true, message: '请选择日期' }]}>
+            <DatePicker style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="work" label="工作内容" rules={[{ required: true, message: '请输入工作内容' }]}>
+            <Input.TextArea rows={4} />
+          </Form.Item>
+          <Form.Item name="consumed" label="消耗(h)" rules={[{ required: true, message: '请输入工时' }]}>
+            <InputNumber min={0} step={0.5} style={{ width: '100%' }} />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title="编辑任务"
+        open={editingTaskOpen}
+        onCancel={() => setEditingTaskOpen(false)}
+        onOk={() => void submitTaskEdit()}
+        confirmLoading={savingTask}
+        destroyOnClose
+      >
+        <Form form={taskForm} layout="vertical">
+          <Form.Item name="assigned_to" label="指派给">
+            <Input placeholder="禅道账号" />
+          </Form.Item>
+          <Form.Item name="pri" label="优先级">
+            <InputNumber min={0} max={4} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="deadline" label="截止日期">
+            <DatePicker style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="status" label="状态">
+            <Select
+              allowClear
+              options={[
+                { value: 'wait', label: '未开始' },
+                { value: 'doing', label: '进行中' },
+                { value: 'done', label: '已完成' },
+                { value: 'closed', label: '已关闭' },
+                { value: 'pause', label: '暂停' },
+                { value: 'cancel', label: '取消' },
+              ]}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   )
 }

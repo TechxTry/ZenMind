@@ -336,7 +336,15 @@ func ListBugs(c *gin.Context) {
 
 	query := db.PG.Model(&models.LocalBug{}).Where("deleted = false")
 	// Scope enforcement
-	if cu := GetCurrentUser(c); cu == nil {
+	myBind := queryMyBinding(c)
+	if myBind {
+		acc, ok := requireBinding(c)
+		if !ok {
+			return
+		}
+		assignedTo = acc
+		groupID = 0
+	} else if cu := GetCurrentUser(c); cu == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	} else {

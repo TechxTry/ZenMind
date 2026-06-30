@@ -1,0 +1,84 @@
+name: Publish Docker Hub Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag, for example v1.0.58"
+        required: true
+        type: string
+      service:
+        description: "Service to publish"
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - backend
+          - frontend
+  push:
+    tags:
+      - "v*"
+
+env:
+  DOCKERHUB_NAMESPACE: techxtry
+  IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.service == 'all' || inputs.service == 'backend' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_NAMESPACE }}/zenmind-backend:${{ env.IMAGE_TAG }}
+            ${{ env.DOCKERHUB_NAMESPACE }}/zenmind-backend:latest
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.service == 'all' || inputs.service == 'frontend' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            APP_VERSION=${{ env.IMAGE_TAG }}
+          tags: |
+            ${{ env.DOCKERHUB_NAMESPACE }}/zenmind-frontend:${{ env.IMAGE_TAG }}
+            ${{ env.DOCKERHUB_NAMESPACE }}/zenmind-frontend:latest

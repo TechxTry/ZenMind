@@ -60,17 +60,35 @@ export const WorkbenchStructureSelect: React.FC<{
   }, [tree])
 
   const selectedMeta = useMemo(() => {
+    const findByKey = (targetKey: string): { type: string; id: number } | undefined => {
+      const walk = (nodes: TreeNode[]): { type: string; id: number } | undefined => {
+        for (const n of nodes) {
+          if (n.key === targetKey) return { type: n.type, id: n.id }
+          const r = n.children ? walk(n.children) : undefined
+          if (r) return r
+        }
+        return undefined
+      }
+      return walk(tree)
+    }
     if (!value) return undefined
-    const walk = (nodes: TreeNode[]): { type: string; id: number } | undefined => {
+    return findByKey(value)
+  }, [tree, value])
+
+  const resolveMetaByKey = useMemo(() => {
+    const walk = (nodes: TreeNode[], targetKey: string): { type: string; id: number } | undefined => {
       for (const n of nodes) {
-        if (n.key === value) return { type: n.type, id: n.id }
-        const r = n.children ? walk(n.children) : undefined
+        if (n.key === targetKey) return { type: n.type, id: n.id }
+        const r = n.children ? walk(n.children, targetKey) : undefined
         if (r) return r
       }
       return undefined
     }
-    return walk(tree)
-  }, [tree, value])
+    return (targetKey?: string) => {
+      if (!targetKey) return undefined
+      return walk(tree, targetKey)
+    }
+  }, [tree])
 
   const hint = useMemo(() => {
     if (!selectedMeta) return '可选：项目集/项目/迭代，或产品线/产品'
@@ -91,7 +109,7 @@ export const WorkbenchStructureSelect: React.FC<{
         value={value}
         onChange={(v) => {
           const key = (v as string) || undefined
-          const meta = key ? selectedMeta : undefined
+          const meta = resolveMetaByKey(key)
           onChange(key, meta)
         }}
         placeholder="按项目/产品结构筛选"
@@ -103,4 +121,3 @@ export const WorkbenchStructureSelect: React.FC<{
     </div>
   )
 }
-
