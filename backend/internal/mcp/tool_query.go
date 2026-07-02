@@ -239,6 +239,128 @@ func (t ListMyBugsTool) Execute(_ context.Context, caller CallerInfo, args map[s
 	return TextResult(string(out))
 }
 
+// ---- listMyStories ----
+
+type ListMyStoriesTool struct{}
+
+func (t ListMyStoriesTool) Definition() ToolDef {
+	return ToolDef{
+		Name:        "listMyStories",
+		Description: "查询当前归属给我的需求列表（来自本地同步数据），支持状态与结构维度筛选。",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"id":           {Type: "number", Description: "需求 ID，精确匹配，可选"},
+				"status":       {Type: "string", Description: "需求状态过滤：draft|reviewing|active|changing|changed|closed，可选"},
+				"execution_id": {Type: "number", Description: "按迭代 ID 过滤（通过任务/缺陷关联需求），可选"},
+				"product_id":   {Type: "number", Description: "按产品 ID 过滤，可选"},
+				"limit":        {Type: "number", Description: "最多返回条数，默认 50，最大 200"},
+			},
+		},
+	}
+}
+
+func (t ListMyStoriesTool) Execute(_ context.Context, caller CallerInfo, args map[string]interface{}) ToolCallResult {
+	limit := int(floatArg(args, "limit"))
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	recordID := int64(floatArg(args, "id"))
+	status := strings.TrimSpace(stringArg(args, "status"))
+	execID := int64(floatArg(args, "execution_id"))
+	productID := int64(floatArg(args, "product_id"))
+
+	pg := db.PG
+	if pg == nil {
+		return ErrorResult("db not initialized")
+	}
+
+	zentaoAccount, err := resolveZentaoAccount(caller.Username)
+	if err != nil {
+		return ErrorResult("无法确认禅道账号：" + err.Error())
+	}
+
+	query := pg.Model(&models.LocalStory{}).
+		Where("deleted = false").
+		Where("assigned_to = ?", zentaoAccount)
+
+	if recordID > 0 {
+		query = query.Where("id = ?", recordID)
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if execID > 0 {
+		query = query.Where(`
+			id IN (
+				SELECT DISTINCT story_id FROM local_tasks
+				WHERE deleted = false AND execution_id = ? AND story_id > 0
+				UNION
+				SELECT DISTINCT story_id FROM local_bugs
+				WHERE deleted = false AND execution_id = ? AND story_id > 0
+			)`, execID, execID)
+	}
+	if productID > 0 {
+		query = query.Where("product_id = ?", productID)
+	}
+
+	var rows []models.LocalStory
+	if err := query.Order("last_edited_date DESC, id DESC").Limit(limit).Find(&rows).Error; err != nil {
+		return ErrorResult("query failed: " + err.Error())
+	}
+
+	type row struct {
+		ID             int64   `json:"id"`
+		Title          string  `json:"title"`
+		Status         string  `json:"status"`
+		AssignedTo     string  `json:"assigned_to"`
+		Estimate       float64 `json:"estimate"`
+		ProductID      int64   `json:"product_id"`
+		OpenedDate     string  `json:"opened_date"`
+		ClosedDate     string  `json:"closed_date"`
+		LastEditedDate string  `json:"last_edited_date"`
+	}
+
+	result := make([]row, 0, len(rows))
+	for _, s := range rows {
+		item := row{
+			ID:         s.ID,
+			Title:      s.Title,
+			Status:     s.Status,
+			AssignedTo: s.AssignedTo,
+			Estimate:   s.Estimate,
+			ProductID:  s.ProductID,
+		}
+		if s.OpenedDate != nil {
+			item.OpenedDate = s.OpenedDate.Format("2006-01-02")
+		}
+		if s.ClosedDate != nil {
+			item.ClosedDate = s.ClosedDate.Format("2006-01-02")
+		}
+		if s.LastEditedDate != nil {
+			item.LastEditedDate = s.LastEditedDate.Format("2006-01-02 15:04:05")
+		}
+		result = append(result, item)
+	}
+
+	out, _ := json.Marshal(map[string]any{
+		"stories": result,
+		"count":   len(result),
+		"filters": map[string]any{
+			"id":           recordID,
+			"status":       status,
+			"execution_id": execID,
+			"product_id":   productID,
+			"limit":        limit,
+		},
+	})
+	return TextResult(string(out))
+}
+
 // ---- listMyExecutions ----
 
 type ListMyExecutionsTool struct{}

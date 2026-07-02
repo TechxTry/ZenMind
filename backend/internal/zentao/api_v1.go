@@ -658,6 +658,68 @@ func shouldContinueCreateBugTry(err error) bool {
 		strings.Contains(body, "missing argument")
 }
 
+// APICreateStory creates a story via API v1.
+// Most builds expect product context, so we try products/{id}/stories first when product is present.
+func (c *APIClient) APICreateStory(ctx context.Context, token string, payload map[string]any) (map[string]any, error) {
+	if len(payload) == 0 {
+		return nil, fmt.Errorf("empty payload")
+	}
+	if strings.TrimSpace(fmt.Sprintf("%v", payload["title"])) == "" {
+		return nil, fmt.Errorf("title is required")
+	}
+
+	urls := make([]string, 0, 2)
+	if productID, ok := storyProductID(payload); ok && productID > 0 {
+		urls = appendCreateTaskURL(urls, fmt.Sprintf("%s/api.php/v1/products/%d/stories", c.BaseURL, productID))
+	}
+	urls = appendCreateTaskURL(urls, fmt.Sprintf("%s/api.php/v1/stories", c.BaseURL))
+
+	var lastErr error
+	for _, u := range urls {
+		out, err := c.apiJSON(ctx, http.MethodPost, u, token, payload)
+		if err == nil {
+			return out, nil
+		}
+		lastErr = err
+		if shouldContinueCreateStoryTry(err) {
+			continue
+		}
+		return nil, err
+	}
+	return nil, lastErr
+}
+
+func storyProductID(payload map[string]any) (int64, bool) {
+	if v, ok := payload["product"]; ok {
+		if f, ok2 := numFromAny(v); ok2 {
+			return int64(f), true
+		}
+	}
+	if v, ok := payload["product_id"]; ok {
+		if f, ok2 := numFromAny(v); ok2 {
+			return int64(f), true
+		}
+	}
+	return 0, false
+}
+
+func shouldContinueCreateStoryTry(err error) bool {
+	he, ok := IsAPIHTTPError(err)
+	if !ok {
+		return false
+	}
+	if he.Status == http.StatusNotFound || he.Status == http.StatusMethodNotAllowed {
+		return true
+	}
+	body := strings.ToLower(he.Body)
+	if !strings.Contains(body, "storiesentry::post") {
+		return false
+	}
+	return strings.Contains(body, "too few arguments") ||
+		strings.Contains(body, "argumentcounterror") ||
+		strings.Contains(body, "missing argument")
+}
+
 // APIGetTask fetches one task via API v1.
 func (c *APIClient) APIGetTask(ctx context.Context, token string, taskID int64) (map[string]any, error) {
 	if taskID <= 0 {
@@ -673,6 +735,15 @@ func (c *APIClient) APIGetBug(ctx context.Context, token string, bugID int64) (m
 		return nil, fmt.Errorf("invalid bug id")
 	}
 	url := fmt.Sprintf("%s/api.php/v1/bugs/%d", c.BaseURL, bugID)
+	return c.apiJSON(ctx, http.MethodGet, url, token, nil)
+}
+
+// APIGetStory fetches one story via API v1.
+func (c *APIClient) APIGetStory(ctx context.Context, token string, storyID int64) (map[string]any, error) {
+	if storyID <= 0 {
+		return nil, fmt.Errorf("invalid story id")
+	}
+	url := fmt.Sprintf("%s/api.php/v1/stories/%d", c.BaseURL, storyID)
 	return c.apiJSON(ctx, http.MethodGet, url, token, nil)
 }
 
@@ -710,12 +781,34 @@ func (c *APIClient) APIUpdateBug(ctx context.Context, token string, bugID int64,
 	return c.apiJSON(ctx, http.MethodPatch, url, token, payload)
 }
 
+// APIUpdateStory updates story fields via API v1.
+func (c *APIClient) APIUpdateStory(ctx context.Context, token string, storyID int64, payload map[string]any) (map[string]any, error) {
+	if storyID <= 0 {
+		return nil, fmt.Errorf("invalid story id")
+	}
+	if len(payload) == 0 {
+		return nil, fmt.Errorf("empty payload")
+	}
+	url := fmt.Sprintf("%s/api.php/v1/stories/%d", c.BaseURL, storyID)
+	return c.apiJSON(ctx, http.MethodPatch, url, token, payload)
+}
+
 // APIDeleteBug deletes a bug record via API v1.
 func (c *APIClient) APIDeleteBug(ctx context.Context, token string, bugID int64) error {
 	if bugID <= 0 {
 		return fmt.Errorf("invalid bug id")
 	}
 	url := fmt.Sprintf("%s/api.php/v1/bugs/%d", c.BaseURL, bugID)
+	_, err := c.apiJSON(ctx, http.MethodDelete, url, token, nil)
+	return err
+}
+
+// APIDeleteStory deletes a story record via API v1.
+func (c *APIClient) APIDeleteStory(ctx context.Context, token string, storyID int64) error {
+	if storyID <= 0 {
+		return fmt.Errorf("invalid story id")
+	}
+	url := fmt.Sprintf("%s/api.php/v1/stories/%d", c.BaseURL, storyID)
 	_, err := c.apiJSON(ctx, http.MethodDelete, url, token, nil)
 	return err
 }
@@ -879,6 +972,81 @@ func ExtractBugDeleted(resp map[string]any) bool {
 	return false
 }
 
+// ExtractStoryTitle returns story title.
+func ExtractStoryTitle(resp map[string]any) string {
+	story := extractStoryMap(resp)
+	if story == nil {
+		return ""
+	}
+	return strings.TrimSpace(firstNonEmptyString(story, "title"))
+}
+
+// ExtractStoryAssignedTo pulls story assignee account from common story response layouts.
+func ExtractStoryAssignedTo(resp map[string]any) string {
+	story := extractStoryMap(resp)
+	if story == nil {
+		return ""
+	}
+	return firstNonEmptyString(story, "assignedTo", "assigned_to")
+}
+
+// ExtractStoryStatus returns normalized story status from story response.
+func ExtractStoryStatus(resp map[string]any) string {
+	story := extractStoryMap(resp)
+	if story == nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(firstNonEmptyString(story, "status")))
+}
+
+// ExtractStoryProductID returns linked product id if present.
+func ExtractStoryProductID(resp map[string]any) (int64, bool) {
+	story := extractStoryMap(resp)
+	if story == nil {
+		return 0, false
+	}
+	for _, key := range []string{"product", "productID", "product_id"} {
+		if v, ok := story[key]; ok {
+			if f, ok2 := numFromAny(v); ok2 {
+				return int64(f), true
+			}
+		}
+	}
+	return 0, false
+}
+
+// ExtractStoryEstimate returns story estimate if present.
+func ExtractStoryEstimate(resp map[string]any) (float64, bool) {
+	story := extractStoryMap(resp)
+	if story == nil {
+		return 0, false
+	}
+	for _, key := range []string{"estimate"} {
+		if v, ok := story[key]; ok {
+			if f, ok2 := numFromAny(v); ok2 {
+				return f, true
+			}
+		}
+	}
+	return 0, false
+}
+
+// ExtractStoryDeleted returns whether the story has been marked deleted.
+func ExtractStoryDeleted(resp map[string]any) bool {
+	story := extractStoryMap(resp)
+	if story == nil {
+		return false
+	}
+	for _, key := range []string{"deleted", "is_deleted"} {
+		if v, ok := story[key]; ok {
+			if b, ok2 := boolFromAny(v); ok2 {
+				return b
+			}
+		}
+	}
+	return false
+}
+
 // ExtractEffortTaskID returns task/object id from effort response.
 func ExtractEffortTaskID(resp map[string]any) (int64, bool) {
 	eff := extractEffortMap(resp)
@@ -1034,6 +1202,27 @@ func extractBugMap(resp map[string]any) map[string]any {
 	return resp
 }
 
+func extractStoryMap(resp map[string]any) map[string]any {
+	if resp == nil {
+		return nil
+	}
+	if looksLikeStoryMap(resp) {
+		return resp
+	}
+	if m, ok := resp["story"].(map[string]any); ok {
+		return m
+	}
+	if m, ok := resp["data"].(map[string]any); ok {
+		if looksLikeStoryMap(m) {
+			return m
+		}
+		if mm, ok2 := m["story"].(map[string]any); ok2 {
+			return mm
+		}
+	}
+	return resp
+}
+
 func looksLikeTaskMap(m map[string]any) bool {
 	if m == nil {
 		return false
@@ -1055,6 +1244,18 @@ func looksLikeBugMap(m map[string]any) bool {
 	_, hasAssigned2 := m["assigned_to"]
 	_, hasSeverity := m["severity"]
 	return hasTitle || hasStatus || hasAssigned || hasAssigned2 || hasSeverity
+}
+
+func looksLikeStoryMap(m map[string]any) bool {
+	if m == nil {
+		return false
+	}
+	_, hasTitle := m["title"]
+	_, hasStatus := m["status"]
+	_, hasAssigned := m["assignedTo"]
+	_, hasAssigned2 := m["assigned_to"]
+	_, hasProduct := m["product"]
+	return hasTitle || hasStatus || hasAssigned || hasAssigned2 || hasProduct
 }
 
 func looksLikeEffortMap(m map[string]any) bool {
@@ -1182,6 +1383,18 @@ func isBugAPIMissing(status int) bool {
 func IsBugAPIMissing(err error) bool {
 	if he, ok := IsAPIHTTPError(err); ok {
 		return isBugAPIMissing(he.Status)
+	}
+	return false
+}
+
+func isStoryAPIMissing(status int) bool {
+	return status == http.StatusNotFound || status == http.StatusMethodNotAllowed
+}
+
+// IsStoryAPIMissing reports whether an API error indicates the story write endpoint is absent.
+func IsStoryAPIMissing(err error) bool {
+	if he, ok := IsAPIHTTPError(err); ok {
+		return isStoryAPIMissing(he.Status)
 	}
 	return false
 }

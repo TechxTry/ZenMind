@@ -393,6 +393,238 @@ func (t UpdateTaskTool) Execute(ctx context.Context, caller CallerInfo, args map
 	return TextResult(string(out))
 }
 
+type CreateStoryTool struct{}
+
+func (t CreateStoryTool) Definition() ToolDef {
+	return ToolDef{
+		Name:        "createStory",
+		Description: "创建需求（必填：title、product_id；其余字段可选）。",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"title":       {Type: "string", Description: "需求标题，必填"},
+				"product_id":  {Type: "number", Description: "产品 ID，必填"},
+				"assigned_to": {Type: "string", Description: "指派给账号，可选"},
+				"estimate":    {Type: "number", Description: "预估工时，可选"},
+				"status":      {Type: "string", Description: "draft|reviewing|active|changing|changed|closed，可选"},
+				"spec":        {Type: "string", Description: "需求描述，可选"},
+				"pri":         {Type: "number", Description: "优先级 0-4，可选"},
+			},
+			Required: []string{"title", "product_id"},
+		},
+	}
+}
+
+func (t CreateStoryTool) Execute(ctx context.Context, caller CallerInfo, args map[string]interface{}) ToolCallResult {
+	title := strings.TrimSpace(stringArg(args, "title"))
+	if title == "" {
+		return ErrorResult("title is required")
+	}
+	productID := int64(floatArg(args, "product_id"))
+	if productID <= 0 {
+		return ErrorResult("product_id is required")
+	}
+
+	payload := map[string]any{
+		"title":   title,
+		"product": productID,
+	}
+	if s := strings.TrimSpace(stringArg(args, "assigned_to")); s != "" {
+		payload["assignedTo"] = s
+	}
+	if _, ok := args["estimate"]; ok {
+		estimate := floatArg(args, "estimate")
+		if estimate < 0 {
+			return ErrorResult("estimate must be >= 0")
+		}
+		payload["estimate"] = estimate
+	}
+	if s := strings.ToLower(strings.TrimSpace(stringArg(args, "status"))); s != "" {
+		if !isValidStoryStatus(s) {
+			return ErrorResult("status must be one of draft|reviewing|active|changing|changed|closed")
+		}
+		payload["status"] = s
+	}
+	if s := strings.TrimSpace(stringArg(args, "spec")); s != "" {
+		payload["spec"] = s
+	}
+	if _, ok := args["pri"]; ok {
+		pri := int(floatArg(args, "pri"))
+		if pri < 0 || pri > 4 {
+			return ErrorResult("pri must be between 0 and 4")
+		}
+		payload["pri"] = pri
+	}
+
+	resp, err := withZentaoClient(ctx, caller.Username, func(ctx context.Context, cli *zentao.APIClient, token string) (map[string]any, error) {
+		return cli.APICreateStory(ctx, token, payload)
+	})
+	if err != nil {
+		return ErrorResult(mcpWriteErr(err))
+	}
+
+	storyID := extractCreatedStoryID(resp)
+	if storyID <= 0 {
+		return ErrorResult("禅道返回成功但未给出 story_id，无法确认需求已创建。请到禅道需求列表核对后再重试。")
+	}
+	if verifyErr := verifyStoryCreatedPersisted(ctx, caller.Username, storyID); verifyErr != nil {
+		return ErrorResult(verifyErr.Error())
+	}
+	go etl.SyncStories()
+	_ = db.WriteAudit(db.AuditInput{
+		ActorUserID:   &caller.UserID,
+		ActorUsername: caller.Username,
+		Action:        "mcp_create_story",
+		TargetType:    "story",
+		TargetID:      fmt.Sprintf("%d", storyID),
+		Metadata: models.JSONB{
+			"story_id": storyID,
+			"payload":  payload,
+			"result":   resp,
+		},
+	})
+	out, _ := json.Marshal(map[string]any{
+		"ok":       true,
+		"story_id": storyID,
+		"result":   resp,
+	})
+	return TextResult(string(out))
+}
+
+type UpdateStoryTool struct{}
+
+func (t UpdateStoryTool) Definition() ToolDef {
+	return ToolDef{
+		Name:        "updateStory",
+		Description: "编辑需求字段（标题、状态、预估、指派人、产品等）。",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"story_id":    {Type: "number", Description: "需求 ID"},
+				"title":       {Type: "string", Description: "需求标题，可选"},
+				"product_id":  {Type: "number", Description: "产品 ID，可选"},
+				"assigned_to": {Type: "string", Description: "指派给账号，可选"},
+				"estimate":    {Type: "number", Description: "预估工时，可选"},
+				"status":      {Type: "string", Description: "draft|reviewing|active|changing|changed|closed，可选"},
+				"spec":        {Type: "string", Description: "需求描述，可选"},
+				"pri":         {Type: "number", Description: "优先级 0-4，可选"},
+			},
+			Required: []string{"story_id"},
+		},
+	}
+}
+
+func (t UpdateStoryTool) Execute(ctx context.Context, caller CallerInfo, args map[string]interface{}) ToolCallResult {
+	storyID := int64(floatArg(args, "story_id"))
+	if storyID <= 0 {
+		return ErrorResult("story_id must be a positive integer")
+	}
+	payload := map[string]any{}
+	if s := strings.TrimSpace(stringArg(args, "title")); s != "" {
+		payload["title"] = s
+	}
+	if productID := int64(floatArg(args, "product_id")); productID > 0 {
+		payload["product"] = productID
+	}
+	if s := strings.TrimSpace(stringArg(args, "assigned_to")); s != "" {
+		payload["assignedTo"] = s
+	}
+	if _, ok := args["estimate"]; ok {
+		estimate := floatArg(args, "estimate")
+		if estimate < 0 {
+			return ErrorResult("estimate must be >= 0")
+		}
+		payload["estimate"] = estimate
+	}
+	if s := strings.ToLower(strings.TrimSpace(stringArg(args, "status"))); s != "" {
+		if !isValidStoryStatus(s) {
+			return ErrorResult("status must be one of draft|reviewing|active|changing|changed|closed")
+		}
+		payload["status"] = s
+	}
+	if s := strings.TrimSpace(stringArg(args, "spec")); s != "" {
+		payload["spec"] = s
+	}
+	if _, ok := args["pri"]; ok {
+		pri := int(floatArg(args, "pri"))
+		if pri < 0 || pri > 4 {
+			return ErrorResult("pri must be between 0 and 4")
+		}
+		payload["pri"] = pri
+	}
+	if len(payload) == 0 {
+		return ErrorResult("no fields to update")
+	}
+
+	resp, err := withZentaoClient(ctx, caller.Username, func(ctx context.Context, cli *zentao.APIClient, token string) (map[string]any, error) {
+		return cli.APIUpdateStory(ctx, token, storyID, payload)
+	})
+	if err != nil {
+		return ErrorResult(mcpWriteErr(err))
+	}
+	if verifyErr := verifyStoryUpdatedPersisted(ctx, caller.Username, storyID, payload); verifyErr != nil {
+		return ErrorResult(verifyErr.Error())
+	}
+	go etl.SyncStories()
+	_ = db.WriteAudit(db.AuditInput{
+		ActorUserID:   &caller.UserID,
+		ActorUsername: caller.Username,
+		Action:        "mcp_update_story",
+		TargetType:    "story",
+		TargetID:      fmt.Sprintf("%d", storyID),
+		Metadata: models.JSONB{
+			"payload": payload,
+			"result":  resp,
+		},
+	})
+	out, _ := json.Marshal(map[string]any{"ok": true, "story_id": storyID, "result": resp})
+	return TextResult(string(out))
+}
+
+type DeleteStoryTool struct{}
+
+func (t DeleteStoryTool) Definition() ToolDef {
+	return ToolDef{
+		Name:        "deleteStory",
+		Description: "删除需求（若禅道实例无删除路由，则回退为关闭需求）。",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"story_id": {Type: "number", Description: "需求 ID"},
+			},
+			Required: []string{"story_id"},
+		},
+	}
+}
+
+func (t DeleteStoryTool) Execute(ctx context.Context, caller CallerInfo, args map[string]interface{}) ToolCallResult {
+	storyID := int64(floatArg(args, "story_id"))
+	if storyID <= 0 {
+		return ErrorResult("story_id must be a positive integer")
+	}
+	resp, mode, err := mcpDeleteStory(ctx, caller.Username, storyID)
+	if err != nil {
+		return ErrorResult(mcpWriteErr(err))
+	}
+	if verifyErr := verifyStoryDeletedPersisted(ctx, caller.Username, storyID, mode); verifyErr != nil {
+		return ErrorResult(verifyErr.Error())
+	}
+	go etl.SyncStories()
+	_ = db.WriteAudit(db.AuditInput{
+		ActorUserID:   &caller.UserID,
+		ActorUsername: caller.Username,
+		Action:        "mcp_delete_story",
+		TargetType:    "story",
+		TargetID:      fmt.Sprintf("%d", storyID),
+		Metadata: models.JSONB{
+			"mode":   mode,
+			"result": resp,
+		},
+	})
+	out, _ := json.Marshal(map[string]any{"ok": true, "story_id": storyID, "mode": mode, "result": resp})
+	return TextResult(string(out))
+}
+
 type CreateBugTool struct{}
 
 func (t CreateBugTool) Definition() ToolDef {
@@ -634,6 +866,101 @@ func (t DeleteBugTool) Execute(ctx context.Context, caller CallerInfo, args map[
 	})
 	out, _ := json.Marshal(map[string]any{"ok": true, "bug_id": bugID, "mode": mode, "result": resp})
 	return TextResult(string(out))
+}
+
+func isValidStoryStatus(status string) bool {
+	switch status {
+	case "draft", "reviewing", "active", "changing", "changed", "closed":
+		return true
+	default:
+		return false
+	}
+}
+
+func extractCreatedStoryID(resp map[string]any) int64 {
+	if id, ok := int64FromAny(resp["id"]); ok && id > 0 {
+		return id
+	}
+	if item, ok := resp["story"].(map[string]any); ok {
+		if id, ok := int64FromAny(item["id"]); ok && id > 0 {
+			return id
+		}
+	}
+	if item, ok := resp["data"].(map[string]any); ok {
+		if id, ok := int64FromAny(item["id"]); ok && id > 0 {
+			return id
+		}
+	}
+	return 0
+}
+
+func verifyStoryCreatedPersisted(ctx context.Context, sub string, storyID int64) error {
+	_, err := withZentaoClient(ctx, sub, func(ctx context.Context, cli *zentao.APIClient, token string) (map[string]any, error) {
+		return cli.APIGetStory(ctx, token, storyID)
+	})
+	if err != nil {
+		return fmt.Errorf("需求创建后回读失败：%s", mcpWriteErr(err))
+	}
+	return nil
+}
+
+func verifyStoryUpdatedPersisted(ctx context.Context, sub string, storyID int64, payload map[string]any) error {
+	storyResp, err := withZentaoClient(ctx, sub, func(ctx context.Context, cli *zentao.APIClient, token string) (map[string]any, error) {
+		return cli.APIGetStory(ctx, token, storyID)
+	})
+	if err != nil {
+		return fmt.Errorf("需求更新后回读失败：%s", mcpWriteErr(err))
+	}
+	if diffs := diffStoryPayload(payload, storyResp); len(diffs) > 0 {
+		return fmt.Errorf("需求已请求更新，但禅道未生效：%s", strings.Join(diffs, "；"))
+	}
+	return nil
+}
+
+func diffStoryPayload(payload map[string]any, storyResp map[string]any) []string {
+	diffs := make([]string, 0, 6)
+	if v, ok := payload["title"]; ok {
+		want := strings.TrimSpace(fmt.Sprintf("%v", v))
+		got := strings.TrimSpace(zentao.ExtractStoryTitle(storyResp))
+		if want != got {
+			diffs = append(diffs, fmt.Sprintf("title=%q (期望 %q)", got, want))
+		}
+	}
+	if v, ok := payload["assignedTo"]; ok {
+		want := strings.TrimSpace(fmt.Sprintf("%v", v))
+		got := strings.TrimSpace(zentao.ExtractStoryAssignedTo(storyResp))
+		if !strings.EqualFold(want, got) {
+			if got == "" {
+				got = "(empty)"
+			}
+			diffs = append(diffs, fmt.Sprintf("assignedTo=%q (期望 %q)", got, want))
+		}
+	}
+	if v, ok := payload["status"]; ok {
+		want := strings.ToLower(strings.TrimSpace(fmt.Sprintf("%v", v)))
+		got := zentao.ExtractStoryStatus(storyResp)
+		if want != got {
+			if got == "" {
+				got = "(empty)"
+			}
+			diffs = append(diffs, fmt.Sprintf("status=%q (期望 %q)", got, want))
+		}
+	}
+	if v, ok := payload["product"]; ok {
+		want, okWant := int64FromAny(v)
+		got, okGot := zentao.ExtractStoryProductID(storyResp)
+		if !okWant || !okGot || got != want {
+			diffs = append(diffs, fmt.Sprintf("product=%v (期望 %v)", got, want))
+		}
+	}
+	if v, ok := payload["estimate"]; ok {
+		want, okWant := float64FromAny(v)
+		got, okGot := zentao.ExtractStoryEstimate(storyResp)
+		if !okWant || !okGot || !floatAlmostEqual(got, want) {
+			diffs = append(diffs, fmt.Sprintf("estimate=%g (期望 %g)", got, want))
+		}
+	}
+	return diffs
 }
 
 func extractCreatedBugID(resp map[string]any) int64 {
@@ -1036,6 +1363,25 @@ func mcpDeleteEffort(ctx context.Context, username string, taskID, effortID int6
 	return nil, "", fmt.Errorf("zentao api has no effort delete route; bind zentao web session or use UI: %w", err)
 }
 
+func mcpDeleteStory(ctx context.Context, username string, storyID int64) (map[string]any, string, error) {
+	_, err := withZentaoClient(ctx, username, func(ctx context.Context, cli *zentao.APIClient, token string) (map[string]any, error) {
+		return map[string]any{"ok": true}, cli.APIDeleteStory(ctx, token, storyID)
+	})
+	if err == nil {
+		return map[string]any{"ok": true}, "api_v1_delete", nil
+	}
+	if !zentao.IsStoryAPIMissing(err) {
+		return nil, "", err
+	}
+	resp, closeErr := withZentaoClient(ctx, username, func(ctx context.Context, cli *zentao.APIClient, token string) (map[string]any, error) {
+		return cli.APIUpdateStory(ctx, token, storyID, map[string]any{"status": "closed"})
+	})
+	if closeErr != nil {
+		return nil, "", fmt.Errorf("zentao api has no story delete route and close fallback failed: %w", closeErr)
+	}
+	return map[string]any{"ok": true, "close_result": resp}, "api_v1_close", nil
+}
+
 func mcpDeleteBug(ctx context.Context, username string, bugID int64, resolution string) (map[string]any, string, error) {
 	_, err := withZentaoClient(ctx, username, func(ctx context.Context, cli *zentao.APIClient, token string) (map[string]any, error) {
 		return map[string]any{"ok": true}, cli.APIDeleteBug(ctx, token, bugID)
@@ -1060,6 +1406,26 @@ func mcpDeleteBug(ctx context.Context, username string, bugID int64, resolution 
 		return nil, "", fmt.Errorf("zentao api has no bug delete route and close fallback failed: %w", closeErr)
 	}
 	return map[string]any{"ok": true, "close_result": resp}, "api_v1_close", nil
+}
+
+func verifyStoryDeletedPersisted(ctx context.Context, sub string, storyID int64, mode string) error {
+	storyResp, err := withZentaoClient(ctx, sub, func(ctx context.Context, cli *zentao.APIClient, token string) (map[string]any, error) {
+		return cli.APIGetStory(ctx, token, storyID)
+	})
+	if err != nil {
+		if he, ok := zentao.IsAPIHTTPError(err); ok && he.Status == 404 {
+			return nil
+		}
+		return fmt.Errorf("需求删除后回读失败：%s", mcpWriteErr(err))
+	}
+	if zentao.ExtractStoryDeleted(storyResp) {
+		return nil
+	}
+	status := zentao.ExtractStoryStatus(storyResp)
+	if mode == "api_v1_close" && status == "closed" {
+		return nil
+	}
+	return fmt.Errorf("需求删除未生效：story_id=%d 仍存在（status=%s）", storyID, status)
 }
 
 func verifyBugDeletedPersisted(ctx context.Context, sub string, bugID int64, mode string) error {

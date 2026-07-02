@@ -60,6 +60,22 @@ func firstVisibleTask(groupID int, taskID int64) (models.LocalTask, error) {
 	return t, err
 }
 
+// firstVisibleStory loads a story by id if it exists and passes workbench group isolation
+// (assignee must be in group when group_id > 0).
+func firstVisibleStory(groupID int, storyID int64) (models.LocalStory, error) {
+	accounts, showNone := groupFilter(groupID)
+	if showNone {
+		return models.LocalStory{}, gorm.ErrRecordNotFound
+	}
+	q := db.PG.Where("id = ? AND deleted = false", storyID)
+	if accounts != nil {
+		q = q.Where("assigned_to IN ?", accounts)
+	}
+	var s models.LocalStory
+	err := q.First(&s).Error
+	return s, err
+}
+
 // GetTask GET /api/workbench/tasks/:id
 func GetTask(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
@@ -321,6 +337,74 @@ func ListStories(c *gin.Context) {
 	var rows []models.LocalStory
 	query.Offset((page - 1) * pageSize).Limit(pageSize).Order("last_edited_date DESC").Find(&rows)
 	c.JSON(http.StatusOK, pageResponse(rows, total, page, pageSize))
+}
+
+// GetStory GET /api/workbench/stories/:id
+func GetStory(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid story id"})
+		return
+	}
+	groupID := queryInt(c, "group_id")
+
+	// Scope enforcement: SELF can only access own stories (by assignee).
+	if cu := GetCurrentUser(c); cu == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	} else {
+		switch normalizeScope(cu.User.DataScope) {
+		case scopeSelf:
+			acc, ok := requireBinding(c)
+			if !ok {
+				return
+			}
+			s, err := firstVisibleStory(0, id)
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					c.JSON(http.StatusNotFound, gin.H{"error": "story not found"})
+					return
+				}
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			if strings.TrimSpace(s.AssignedTo) != acc {
+				c.JSON(http.StatusNotFound, gin.H{"error": "story not found"})
+				return
+			}
+			c.JSON(http.StatusOK, s)
+			return
+		case scopeGroup:
+			// Allow GROUP users to view stories assigned to themselves
+			// without group isolation (needed by "My Workbench").
+			s, err := firstVisibleStory(0, id)
+			if err == nil && cu.ZentaoBinding != nil {
+				selfAcc := strings.TrimSpace(cu.ZentaoBinding.ZentaoAccount)
+				if selfAcc != "" && strings.TrimSpace(s.AssignedTo) == selfAcc {
+					c.JSON(http.StatusOK, s)
+					return
+				}
+			}
+			gid, ok := effectiveGroupID(c, groupID)
+			if !ok {
+				return
+			}
+			groupID = gid
+		default:
+			// ALL: keep requested group_id
+		}
+	}
+
+	s, err := firstVisibleStory(groupID, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "story not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, s)
 }
 
 // ListBugs GET /api/workbench/bugs

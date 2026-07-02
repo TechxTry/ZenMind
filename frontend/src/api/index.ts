@@ -280,6 +280,25 @@ export const updateZentaoTask = (id: number, data: {
   deadline?: string
   status?: 'wait' | 'doing' | 'done' | 'closed' | 'pause' | 'cancel'
 }) => http.patch(`/zentao/tasks/${id}`, data).then((r) => r.data)
+export const createZentaoStory = (data: {
+  title: string
+  product_id: number
+  assigned_to?: string
+  estimate?: number
+  status?: 'draft' | 'reviewing' | 'active' | 'changing' | 'changed' | 'closed'
+  spec?: string
+  pri?: number
+}) => http.post('/zentao/stories', data).then((r) => r.data)
+export const updateZentaoStory = (id: number, data: {
+  title?: string
+  product_id?: number
+  assigned_to?: string
+  estimate?: number
+  status?: 'draft' | 'reviewing' | 'active' | 'changing' | 'changed' | 'closed'
+  spec?: string
+  pri?: number
+}) => http.patch(`/zentao/stories/${id}`, data).then((r) => r.data)
+export const deleteZentaoStory = (id: number) => http.delete(`/zentao/stories/${id}`).then((r) => r.data)
 export const createZentaoBug = (data: {
   title: string
   steps?: string
@@ -353,6 +372,8 @@ export const listTasks = (params: WorkbenchParams) => http.get('/workbench/tasks
 export const getTask = (id: number, params?: { group_id?: number; my_binding?: 0 | 1 }) =>
   http.get(`/workbench/tasks/${id}`, { params }).then((r) => r.data)
 export const listStories = (params: WorkbenchParams) => http.get('/workbench/stories', { params }).then((r) => r.data)
+export const getStory = (id: number, params?: { group_id?: number }) =>
+  http.get(`/workbench/stories/${id}`, { params }).then((r) => r.data)
 export const listBugs = (params: WorkbenchParams) => http.get('/workbench/bugs', { params }).then((r) => r.data)
 export const listEfforts = (params: WorkbenchParams) => http.get('/workbench/efforts', { params }).then((r) => r.data)
 export const listExecutions = (params: WorkbenchParams) => http.get('/workbench/executions', { params }).then((r) => r.data)

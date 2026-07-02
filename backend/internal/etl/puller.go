@@ -122,6 +122,20 @@ func ztTaskWatermarkTime(r *source.ZtTask) *time.Time {
 
 const taskNullLastEditedReconcileWindow = 30 * 24 * time.Hour
 
+// ztBugWatermarkTime returns a monotonic "change time" for watermark advancement.
+// Some Zentao bug rows keep lastEditedDate NULL until the bug is edited; openedDate is set on create.
+func ztBugWatermarkTime(r *source.ZtBug) *time.Time {
+	if r == nil {
+		return nil
+	}
+	if r.LastEditedDate != nil {
+		return r.LastEditedDate
+	}
+	return r.OpenedDate
+}
+
+const bugNullLastEditedReconcileWindow = 30 * 24 * time.Hour
+
 // SyncTasks pulls source task table (default: zt_task) incrementally.
 func SyncTasks() {
 	cfg, ok := tableConfig("local_tasks")
@@ -252,7 +266,16 @@ func SyncBugs() {
 	wm := getWatermark(cfg.Name)
 	var rows []source.ZtBug
 	q := ztDB.Table(cfg.Source)
-	if clause, arg := whereClause(cfg, wm); clause != "" {
+	// Incremental by lastEditedDate alone misses rows where lastEditedDate IS NULL.
+	// Use openedDate fallback plus a small reconcile window to avoid permanent misses.
+	if cfg.Watermark.Type == config.WatermarkTime && strings.TrimSpace(cfg.Watermark.Field) == "lastEditedDate" {
+		reconcileFrom := time.Now().Add(-bugNullLastEditedReconcileWindow)
+		q = q.Where(
+			"(COALESCE(lastEditedDate, openedDate) > ?) OR (lastEditedDate IS NULL AND openedDate >= ?)",
+			wm,
+			reconcileFrom,
+		)
+	} else if clause, arg := whereClause(cfg, wm); clause != "" {
 		q = q.Where(clause, arg)
 	}
 	if cfg.ExtraFilter != "" {
@@ -281,8 +304,8 @@ func SyncBugs() {
 			SyncedAt:       now,
 		}
 		db.PG.Save(&m)
-		if r.LastEditedDate != nil && r.LastEditedDate.After(maxEdited) {
-			maxEdited = *r.LastEditedDate
+		if t := ztBugWatermarkTime(&r); t != nil && t.After(maxEdited) {
+			maxEdited = *t
 		}
 	}
 	log.Printf("[etl] SyncBugs(%s→%s): upserted %d rows", cfg.Source, cfg.Name, len(rows))
