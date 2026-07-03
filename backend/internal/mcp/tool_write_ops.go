@@ -28,7 +28,7 @@ func (t CreateTaskTool) Definition() ToolDef {
 				"project_id":   {Type: "number", Description: "项目 ID，可选"},
 				"name":         {Type: "string", Description: "任务标题"},
 				"type":         {Type: "string", Description: "任务类型，必填"},
-				"assigned_to":  {Type: "string", Description: "指派给账号，可选"},
+				"assigned_to":  {Type: "string", Description: "指派给账号，可选；未填则默认当前用户绑定账号"},
 				"pri":          {Type: "number", Description: "优先级 0-4，可选"},
 				"estimate":     {Type: "number", Description: "预估工时，可选"},
 				"est_started":  {Type: "string", Description: "预估开始日期 YYYY-MM-DD，可选，默认当天"},
@@ -67,9 +67,15 @@ func (t CreateTaskTool) Execute(ctx context.Context, caller CallerInfo, args map
 	}
 	payload["type"] = taskType
 
-	if s := strings.TrimSpace(stringArg(args, "assigned_to")); s != "" {
-		payload["assignedTo"] = s
+	assignedTo := strings.TrimSpace(stringArg(args, "assigned_to"))
+	if assignedTo == "" {
+		var err error
+		assignedTo, err = resolveZentaoAccount(caller.Username)
+		if err != nil {
+			return ErrorResult("assigned_to 未指定，且无法解析当前用户绑定禅道账号: " + err.Error())
+		}
 	}
+	payload["assignedTo"] = assignedTo
 	if _, ok := args["pri"]; ok {
 		pri := int(floatArg(args, "pri"))
 		if pri < 0 || pri > 4 {
