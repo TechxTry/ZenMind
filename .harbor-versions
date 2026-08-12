@@ -1,3 +1,3 @@
 # 由 scripts/version.sh 根据 VERSION 自动生成，与 Harbor/Docker/Git 标签保持一致
-backend=v1.0.61
-frontend=v1.0.61
+backend=v1.0.64
+frontend=v1.0.64

@@ -159,3 +159,42 @@ func TestAPICreateTaskCopiesSnakeCaseEstStarted(t *testing.T) {
 		t.Fatalf("unexpected call order: %#v", calls)
 	}
 }
+
+func TestParsePlanIDs(t *testing.T) {
+	cases := []struct {
+		name string
+		in   any
+		want []int64
+	}{
+		{name: "int", in: 12, want: []int64{12}},
+		{name: "float", in: float64(34), want: []int64{34}},
+		{name: "csv", in: "1, 2,3", want: []int64{1, 2, 3}},
+		{name: "object", in: map[string]any{"id": float64(9)}, want: []int64{9}},
+		{name: "list", in: []any{float64(4), "5"}, want: []int64{4, 5}},
+		{name: "empty", in: "0", want: nil},
+	}
+	for _, tc := range cases {
+		got := ParsePlanIDs(tc.in)
+		if !slices.Equal(got, tc.want) {
+			t.Fatalf("%s: got %#v want %#v", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestExtractStoryAndBugPlan(t *testing.T) {
+	storyID, ok := ExtractStoryPlanID(map[string]any{
+		"story": map[string]any{"plan": "8,9"},
+	})
+	if !ok || storyID != 8 {
+		t.Fatalf("ExtractStoryPlanID: got %d ok=%v", storyID, ok)
+	}
+	if !ContainsPlanID(ExtractStoryPlanIDs(map[string]any{"plan": "8,9"}), 9) {
+		t.Fatal("expected story plan 9 to be present")
+	}
+	bugID, ok := ExtractBugPlanID(map[string]any{
+		"bug": map[string]any{"plan": float64(21)},
+	})
+	if !ok || bugID != 21 {
+		t.Fatalf("ExtractBugPlanID: got %d ok=%v", bugID, ok)
+	}
+}

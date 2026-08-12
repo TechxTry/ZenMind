@@ -856,6 +856,79 @@ func ExtractTaskPri(resp map[string]any) (int, bool) {
 	return 0, false
 }
 
+// ExtractTaskString returns the first non-empty string field from a task response.
+func ExtractTaskString(resp map[string]any, keys ...string) string {
+	task := extractTaskMap(resp)
+	if task == nil {
+		return ""
+	}
+	for _, key := range keys {
+		if v, ok := task[key]; ok {
+			if s := scalarToTrimmedString(v); s != "" {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+// ExtractTaskFloat returns a numeric task field.
+func ExtractTaskFloat(resp map[string]any, keys ...string) (float64, bool) {
+	task := extractTaskMap(resp)
+	if task == nil {
+		return 0, false
+	}
+	for _, key := range keys {
+		if v, ok := task[key]; ok {
+			if f, ok2 := numFromAny(v); ok2 {
+				return f, true
+			}
+		}
+	}
+	return 0, false
+}
+
+// ExtractTaskInt64 returns an integer task field.
+func ExtractTaskInt64(resp map[string]any, keys ...string) (int64, bool) {
+	f, ok := ExtractTaskFloat(resp, keys...)
+	if !ok {
+		return 0, false
+	}
+	return int64(f), true
+}
+
+// ExtractTaskRaw returns a raw task field value if present.
+func ExtractTaskRaw(resp map[string]any, keys ...string) (any, bool) {
+	task := extractTaskMap(resp)
+	if task == nil {
+		return nil, false
+	}
+	for _, key := range keys {
+		if v, ok := task[key]; ok && v != nil {
+			return v, true
+		}
+	}
+	return nil, false
+}
+
+func scalarToTrimmedString(v any) string {
+	switch t := v.(type) {
+	case string:
+		return strings.TrimSpace(t)
+	case float64, float32, int, int64, int32, json.Number, bool:
+		return strings.TrimSpace(fmt.Sprintf("%v", t))
+	case map[string]any:
+		// assignedTo-like objects
+		if s, ok := t["account"].(string); ok && strings.TrimSpace(s) != "" {
+			return strings.TrimSpace(s)
+		}
+		if s, ok := t["realname"].(string); ok && strings.TrimSpace(s) != "" {
+			return strings.TrimSpace(s)
+		}
+	}
+	return ""
+}
+
 // ExtractBugAssignedTo pulls bug assignee account from common bug response layouts.
 func ExtractBugAssignedTo(resp map[string]any) string {
 	bug := extractBugMap(resp)
@@ -1029,6 +1102,110 @@ func ExtractStoryEstimate(resp map[string]any) (float64, bool) {
 		}
 	}
 	return 0, false
+}
+
+// ParsePlanIDs extracts product-plan IDs from ZenTao plan field variants:
+// number, "1,2,3", {id:1}, [{id:1}, ...].
+func ParsePlanIDs(v any) []int64 {
+	if v == nil {
+		return nil
+	}
+	switch x := v.(type) {
+	case string:
+		raw := strings.TrimSpace(x)
+		if raw == "" || raw == "0" {
+			return nil
+		}
+		parts := strings.Split(raw, ",")
+		out := make([]int64, 0, len(parts))
+		for _, part := range parts {
+			if f, ok := numFromAny(strings.TrimSpace(part)); ok {
+				id := int64(f)
+				if id > 0 {
+					out = append(out, id)
+				}
+			}
+		}
+		return out
+	case []any:
+		out := make([]int64, 0, len(x))
+		for _, item := range x {
+			out = append(out, ParsePlanIDs(item)...)
+		}
+		return out
+	case map[string]any:
+		for _, key := range []string{"id", "plan", "planID", "planId", "plan_id"} {
+			if item, ok := x[key]; ok {
+				if ids := ParsePlanIDs(item); len(ids) > 0 {
+					return ids
+				}
+			}
+		}
+		return nil
+	default:
+		if f, ok := numFromAny(x); ok {
+			id := int64(f)
+			if id > 0 {
+				return []int64{id}
+			}
+		}
+		return nil
+	}
+}
+
+// ContainsPlanID reports whether want appears in ids.
+func ContainsPlanID(ids []int64, want int64) bool {
+	if want <= 0 {
+		return false
+	}
+	for _, id := range ids {
+		if id == want {
+			return true
+		}
+	}
+	return false
+}
+
+func extractPlanIDsFromMap(m map[string]any) []int64 {
+	if m == nil {
+		return nil
+	}
+	for _, key := range []string{"plan", "planID", "planId", "plan_id"} {
+		if v, ok := m[key]; ok {
+			if ids := ParsePlanIDs(v); len(ids) > 0 {
+				return ids
+			}
+		}
+	}
+	return nil
+}
+
+// ExtractStoryPlanIDs returns product plan IDs linked to the story.
+func ExtractStoryPlanIDs(resp map[string]any) []int64 {
+	return extractPlanIDsFromMap(extractStoryMap(resp))
+}
+
+// ExtractStoryPlanID returns the first product plan ID if present.
+func ExtractStoryPlanID(resp map[string]any) (int64, bool) {
+	ids := ExtractStoryPlanIDs(resp)
+	if len(ids) == 0 {
+		return 0, false
+	}
+	return ids[0], true
+}
+
+// ExtractBugPlanIDs returns product plan IDs linked to the bug.
+func ExtractBugPlanIDs(resp map[string]any) []int64 {
+	return extractPlanIDsFromMap(extractBugMap(resp))
+}
+
+// ExtractBugPlanID returns the product plan ID if present.
+func ExtractBugPlanID(resp map[string]any) (int64, bool) {
+	ids := ExtractBugPlanIDs(resp)
+	if len(ids) == 0 {
+		return 0, false
+	}
+	return ids[0], true
 }
 
 // ExtractStoryDeleted returns whether the story has been marked deleted.

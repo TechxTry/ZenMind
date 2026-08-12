@@ -254,3 +254,11 @@ func floatArg(args map[string]interface{}, key string) float64 {
 	}
 	return 0
 }
+
+func planIDArg(args map[string]interface{}) int64 {
+	id := int64(floatArg(args, "plan_id"))
+	if id <= 0 {
+		id = int64(floatArg(args, "plan"))
+	}
+	return id
+}

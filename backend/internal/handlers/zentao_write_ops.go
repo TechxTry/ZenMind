@@ -28,10 +28,21 @@ type updateZentaoEffortBody struct {
 }
 
 type updateZentaoTaskBody struct {
-	AssignedTo string `json:"assigned_to"`
-	Pri        *int   `json:"pri"`
-	Deadline   string `json:"deadline"`
-	Status     string `json:"status"`
+	Name         string         `json:"name"`
+	Type         string         `json:"type"`
+	Desc         string         `json:"desc"`
+	AssignedTo   string         `json:"assigned_to"`
+	Pri          *int           `json:"pri"`
+	Estimate     *float64       `json:"estimate"`
+	EstStarted   string         `json:"est_started"`
+	Deadline     string         `json:"deadline"`
+	Status       string         `json:"status"`
+	StoryID      *int64         `json:"story_id"`
+	ModuleID     *int64         `json:"module_id"`
+	FromBug      *int64         `json:"from_bug"`
+	Mailto       string         `json:"mailto"`
+	Color        string         `json:"color"`
+	CustomFields map[string]any `json:"custom_fields"`
 }
 
 // UpdateZentaoEffort PATCH /api/zentao/efforts/:id
@@ -179,6 +190,15 @@ func UpdateZentaoTask(c *gin.Context) {
 		return
 	}
 	payload := make(map[string]any)
+	if v := strings.TrimSpace(req.Name); v != "" {
+		payload["name"] = v
+	}
+	if v := strings.TrimSpace(req.Type); v != "" {
+		payload["type"] = v
+	}
+	if v := strings.TrimSpace(req.Desc); v != "" {
+		payload["desc"] = v
+	}
 	if v := strings.TrimSpace(req.AssignedTo); v != "" {
 		payload["assignedTo"] = v
 	}
@@ -188,6 +208,20 @@ func UpdateZentaoTask(c *gin.Context) {
 			return
 		}
 		payload["pri"] = *req.Pri
+	}
+	if req.Estimate != nil {
+		if *req.Estimate < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "estimate must be >= 0"})
+			return
+		}
+		payload["estimate"] = *req.Estimate
+	}
+	if v := strings.TrimSpace(req.EstStarted); v != "" {
+		if _, err := time.Parse("2006-01-02", v); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "est_started format must be YYYY-MM-DD"})
+			return
+		}
+		payload["estStarted"] = v
 	}
 	if v := strings.TrimSpace(req.Deadline); v != "" {
 		if _, err := time.Parse("2006-01-02", v); err != nil {
@@ -204,6 +238,31 @@ func UpdateZentaoTask(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "status must be one of wait|doing|done|closed|pause|cancel"})
 			return
 		}
+	}
+	if req.StoryID != nil && *req.StoryID > 0 {
+		payload["story"] = *req.StoryID
+	}
+	if req.ModuleID != nil && *req.ModuleID > 0 {
+		payload["module"] = *req.ModuleID
+	}
+	if req.FromBug != nil && *req.FromBug > 0 {
+		payload["fromBug"] = *req.FromBug
+	}
+	if v := strings.TrimSpace(req.Mailto); v != "" {
+		payload["mailto"] = v
+	}
+	if v := strings.TrimSpace(req.Color); v != "" {
+		payload["color"] = v
+	}
+	for k, v := range req.CustomFields {
+		key := strings.TrimSpace(k)
+		if key == "" {
+			continue
+		}
+		if _, exists := payload[key]; exists {
+			continue
+		}
+		payload[key] = v
 	}
 	if len(payload) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "empty update payload"})
@@ -247,13 +306,18 @@ func verifyTaskUpdatePersisted(ctx context.Context, sub string, taskID int64, pa
 		return fmt.Errorf("任务更新后回读失败：%w", err)
 	}
 	if diffs := diffTaskPayload(payload, taskResp); len(diffs) > 0 {
-		return fmt.Errorf("任务已请求更新，但禅道未生效：%s。请确认字段值、任务状态流转限制与当前账号权限", strings.Join(diffs, "；"))
+		return fmt.Errorf("任务已请求更新，但禅道未生效：%s。请确认字段值、任务状态流转限制、自定义字段编码与当前账号权限", strings.Join(diffs, "；"))
 	}
 	return nil
 }
 
 func diffTaskPayload(payload map[string]any, taskResp map[string]any) []string {
-	diffs := make([]string, 0, 4)
+	diffs := make([]string, 0, 8)
+	knownKeys := map[string]struct{}{
+		"assignedTo": {}, "pri": {}, "deadline": {}, "status": {},
+		"name": {}, "type": {}, "desc": {}, "estimate": {}, "estStarted": {},
+		"story": {}, "module": {}, "fromBug": {}, "mailto": {}, "color": {},
+	}
 	if v, ok := payload["assignedTo"]; ok {
 		want := strings.TrimSpace(fmt.Sprintf("%v", v))
 		got := strings.TrimSpace(zentao.ExtractTaskAssignedTo(taskResp))
@@ -289,6 +353,81 @@ func diffTaskPayload(payload map[string]any, taskResp map[string]any) []string {
 				got = "(empty)"
 			}
 			diffs = append(diffs, fmt.Sprintf("status=%q (期望 %q)", got, want))
+		}
+	}
+	if v, ok := payload["name"]; ok {
+		want := strings.TrimSpace(fmt.Sprintf("%v", v))
+		got := strings.TrimSpace(zentao.ExtractTaskString(taskResp, "name", "title"))
+		if want != got {
+			if got == "" {
+				got = "(empty)"
+			}
+			diffs = append(diffs, fmt.Sprintf("name=%q (期望 %q)", got, want))
+		}
+	}
+	if v, ok := payload["type"]; ok {
+		want := strings.TrimSpace(fmt.Sprintf("%v", v))
+		got := strings.TrimSpace(zentao.ExtractTaskString(taskResp, "type"))
+		if !strings.EqualFold(want, got) {
+			if got == "" {
+				got = "(empty)"
+			}
+			diffs = append(diffs, fmt.Sprintf("type=%q (期望 %q)", got, want))
+		}
+	}
+	if v, ok := payload["estimate"]; ok {
+		want, okWant := floatFromAny(v)
+		got, okGot := zentao.ExtractTaskFloat(taskResp, "estimate")
+		if !okWant || !okGot || !floatAlmostEqual(want, got) {
+			diffs = append(diffs, fmt.Sprintf("estimate=%v (期望 %v)", got, want))
+		}
+	}
+	if v, ok := payload["estStarted"]; ok {
+		want := zentao.NormalizeDateYMD(fmt.Sprintf("%v", v))
+		got := zentao.NormalizeDateYMD(zentao.ExtractTaskString(taskResp, "estStarted", "est_started"))
+		if want != got {
+			if got == "" {
+				got = "(empty)"
+			}
+			diffs = append(diffs, fmt.Sprintf("estStarted=%q (期望 %q)", got, want))
+		}
+	}
+	if v, ok := payload["story"]; ok {
+		want, okWant := int64FromAny(v)
+		got, okGot := zentao.ExtractTaskInt64(taskResp, "story", "storyID", "storyId")
+		if !okWant || !okGot || want != got {
+			diffs = append(diffs, fmt.Sprintf("story=%v (期望 %v)", got, want))
+		}
+	}
+	if v, ok := payload["module"]; ok {
+		want, okWant := int64FromAny(v)
+		got, okGot := zentao.ExtractTaskInt64(taskResp, "module", "moduleID", "moduleId")
+		if !okWant || !okGot || want != got {
+			diffs = append(diffs, fmt.Sprintf("module=%v (期望 %v)", got, want))
+		}
+	}
+	if v, ok := payload["fromBug"]; ok {
+		want, okWant := int64FromAny(v)
+		got, okGot := zentao.ExtractTaskInt64(taskResp, "fromBug", "from_bug")
+		if !okWant || !okGot || want != got {
+			diffs = append(diffs, fmt.Sprintf("fromBug=%v (期望 %v)", got, want))
+		}
+	}
+	for key, wantVal := range payload {
+		if _, isKnown := knownKeys[key]; isKnown {
+			continue
+		}
+		gotRaw, ok := zentao.ExtractTaskRaw(taskResp, key)
+		if !ok {
+			continue
+		}
+		want := strings.TrimSpace(fmt.Sprintf("%v", wantVal))
+		got := strings.TrimSpace(fmt.Sprintf("%v", gotRaw))
+		if want != got && !strings.EqualFold(want, got) {
+			if got == "" {
+				got = "(empty)"
+			}
+			diffs = append(diffs, fmt.Sprintf("%s=%q (期望 %q)", key, got, want))
 		}
 	}
 	return diffs
@@ -578,6 +717,27 @@ func floatAlmostEqual(a, b float64) bool {
 	return b-a <= eps
 }
 
+func floatFromAny(v any) (float64, bool) {
+	switch x := v.(type) {
+	case float64:
+		return x, true
+	case float32:
+		return float64(x), true
+	case int:
+		return float64(x), true
+	case int64:
+		return float64(x), true
+	case json.Number:
+		f, err := x.Float64()
+		return f, err == nil
+	case string:
+		f, err := strconv.ParseFloat(strings.TrimSpace(x), 64)
+		return f, err == nil
+	default:
+		return 0, false
+	}
+}
+
 func int64FromAny(v any) (int64, bool) {
 	switch x := v.(type) {
 	case int:
@@ -716,9 +876,13 @@ func writeEffortWriteErr(c *gin.Context, err error) {
 
 func writeErr(c *gin.Context, err error) {
 	if he, ok := zentao.IsAPIHTTPError(err); ok {
+		detail := strings.TrimSpace(he.Body)
+		if detail == "" {
+			detail = "(无响应正文)"
+		}
 		c.JSON(http.StatusBadGateway, gin.H{
 			"ok":         false,
-			"error":      err.Error(),
+			"error":      fmt.Sprintf("禅道接口错误 HTTP %d：%s", he.Status, detail),
 			"api_status": he.Status,
 			"api_body":   he.Body,
 			"api_url":    he.URL,

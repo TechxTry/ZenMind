@@ -20,7 +20,7 @@ type CreateTaskTool struct{}
 func (t CreateTaskTool) Definition() ToolDef {
 	return ToolDef{
 		Name:        "createTask",
-		Description: "创建任务（必填：所属执行 execution_id、任务类型 type、任务标题 name；其余字段可选）。",
+		Description: "创建任务（必填：所属执行 execution_id、任务类型 type、任务标题 name、截止日期 deadline；其余字段可选）。",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
@@ -32,25 +32,43 @@ func (t CreateTaskTool) Definition() ToolDef {
 				"pri":          {Type: "number", Description: "优先级 0-4，可选"},
 				"estimate":     {Type: "number", Description: "预估工时，可选"},
 				"est_started":  {Type: "string", Description: "预估开始日期 YYYY-MM-DD，可选，默认当天"},
-				"deadline":     {Type: "string", Description: "截止日期 YYYY-MM-DD，可选"},
+				"deadline":     {Type: "string", Description: "截止日期 YYYY-MM-DD，必填（禅道实例通常要求）"},
 				"story_id":     {Type: "number", Description: "关联需求 ID，可选"},
 				"module_id":    {Type: "number", Description: "模块 ID，可选"},
 				"desc":         {Type: "string", Description: "任务描述，可选"},
 			},
-			Required: []string{"execution_id", "type", "name"},
+			Required: []string{"execution_id", "type", "name", "deadline"},
 		},
 	}
 }
 
 func (t CreateTaskTool) Execute(ctx context.Context, caller CallerInfo, args map[string]interface{}) ToolCallResult {
 	name := strings.TrimSpace(stringArg(args, "name"))
-	if name == "" {
-		return ErrorResult("name is required")
-	}
 	executionID := int64(floatArg(args, "execution_id"))
-	if executionID <= 0 {
-		return ErrorResult("execution_id is required")
+	taskType := strings.TrimSpace(stringArg(args, "type"))
+	deadline := strings.TrimSpace(stringArg(args, "deadline"))
+
+	missing := make([]string, 0, 4)
+	if name == "" {
+		missing = append(missing, "name")
 	}
+	if executionID <= 0 {
+		missing = append(missing, "execution_id")
+	}
+	if taskType == "" {
+		missing = append(missing, "type")
+	}
+	if deadline == "" {
+		missing = append(missing, "deadline")
+	}
+	if len(missing) > 0 {
+		return ErrorResult("缺少必填字段: " + strings.Join(missing, ", "))
+	}
+
+	if _, err := time.Parse("2006-01-02", deadline); err != nil {
+		return ErrorResult("deadline format must be YYYY-MM-DD")
+	}
+
 	projectID := int64(floatArg(args, "project_id"))
 
 	payload := map[string]any{
@@ -61,10 +79,6 @@ func (t CreateTaskTool) Execute(ctx context.Context, caller CallerInfo, args map
 		payload["project"] = projectID
 	}
 
-	taskType := strings.TrimSpace(stringArg(args, "type"))
-	if taskType == "" {
-		return ErrorResult("type is required")
-	}
 	payload["type"] = taskType
 
 	assignedTo := strings.TrimSpace(stringArg(args, "assigned_to"))
@@ -102,12 +116,7 @@ func (t CreateTaskTool) Execute(ctx context.Context, caller CallerInfo, args map
 	} else {
 		payload["estStarted"] = time.Now().Format("2006-01-02")
 	}
-	if s := strings.TrimSpace(stringArg(args, "deadline")); s != "" {
-		if _, err := time.Parse("2006-01-02", s); err != nil {
-			return ErrorResult("deadline format must be YYYY-MM-DD")
-		}
-		payload["deadline"] = s
-	}
+	payload["deadline"] = deadline
 	if storyID := int64(floatArg(args, "story_id")); storyID > 0 {
 		payload["story"] = storyID
 	}
@@ -324,17 +333,33 @@ func (t DeleteEffortTool) Execute(ctx context.Context, caller CallerInfo, args m
 type UpdateTaskTool struct{}
 
 func (t UpdateTaskTool) Definition() ToolDef {
+	objTrue := true
 	return ToolDef{
 		Name:        "updateTask",
-		Description: "编辑任务核心字段（指派人、优先级、截止日期、状态）。",
+		Description: "编辑任务字段（标题、类型、描述、指派人、优先级、工时、日期、状态、模块、需求等标准字段；可通过 custom_fields 透传禅道自定义字段）。失败时返回禅道接口的具体错误信息。",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
-				"task_id":     {Type: "number", Description: "任务 ID"},
+				"task_id":     {Type: "number", Description: "任务 ID，必填"},
+				"name":        {Type: "string", Description: "任务标题，可选"},
+				"type":        {Type: "string", Description: "任务类型（design|devel|request|test|study|discuss|ui|affair|misc 等），可选"},
+				"desc":        {Type: "string", Description: "任务描述，可选"},
 				"assigned_to": {Type: "string", Description: "新指派账号，可选"},
 				"pri":         {Type: "number", Description: "优先级 0-4，可选"},
+				"estimate":    {Type: "number", Description: "预估工时，可选"},
+				"est_started": {Type: "string", Description: "预计开始日期 YYYY-MM-DD，可选"},
 				"deadline":    {Type: "string", Description: "截止日期 YYYY-MM-DD，可选"},
 				"status":      {Type: "string", Description: "wait|doing|done|closed|pause|cancel，可选"},
+				"story_id":    {Type: "number", Description: "关联需求 ID，可选"},
+				"module_id":   {Type: "number", Description: "模块 ID，可选"},
+				"from_bug":    {Type: "number", Description: "来源 Bug ID，可选"},
+				"mailto":      {Type: "string", Description: "抄送账号，多个可用逗号分隔，可选"},
+				"color":       {Type: "string", Description: "任务颜色标记，可选"},
+				"custom_fields": {
+					Type:                 "object",
+					Description:          "自定义字段键值对，按禅道字段编码原样透传（如 {\"field_xxx\":\"值\"}）；会合并进 PATCH body",
+					AdditionalProperties: &objTrue,
+				},
 			},
 			Required: []string{"task_id"},
 		},
@@ -344,44 +369,23 @@ func (t UpdateTaskTool) Definition() ToolDef {
 func (t UpdateTaskTool) Execute(ctx context.Context, caller CallerInfo, args map[string]interface{}) ToolCallResult {
 	taskID := int64(floatArg(args, "task_id"))
 	if taskID <= 0 {
-		return ErrorResult("task_id must be a positive integer")
+		return ErrorResult("修改任务失败：task_id 必须为正整数")
 	}
-	payload := map[string]any{}
-	if s := strings.TrimSpace(stringArg(args, "assigned_to")); s != "" {
-		payload["assignedTo"] = s
-	}
-	if v, ok := args["pri"]; ok {
-		pri := int(floatArg(map[string]interface{}{"x": v}, "x"))
-		if pri < 0 || pri > 4 {
-			return ErrorResult("pri must be between 0 and 4")
-		}
-		payload["pri"] = pri
-	}
-	if s := strings.TrimSpace(stringArg(args, "deadline")); s != "" {
-		if _, err := time.Parse("2006-01-02", s); err != nil {
-			return ErrorResult("deadline format must be YYYY-MM-DD")
-		}
-		payload["deadline"] = s
-	}
-	if s := strings.TrimSpace(stringArg(args, "status")); s != "" {
-		switch s {
-		case "wait", "doing", "done", "closed", "pause", "cancel":
-			payload["status"] = s
-		default:
-			return ErrorResult("status must be one of wait|doing|done|closed|pause|cancel")
-		}
+	payload, err := buildTaskUpdatePayload(args)
+	if err != nil {
+		return ErrorResult("修改任务失败：" + err.Error())
 	}
 	if len(payload) == 0 {
-		return ErrorResult("no fields to update")
+		return ErrorResult("修改任务失败：未提供任何可更新字段（name/type/desc/assigned_to/pri/estimate/est_started/deadline/status/story_id/module_id/from_bug/mailto/color/custom_fields）")
 	}
 	resp, err := withZentaoClient(ctx, caller.Username, func(ctx context.Context, cli *zentao.APIClient, token string) (map[string]any, error) {
 		return cli.APIUpdateTask(ctx, token, taskID, payload)
 	})
 	if err != nil {
-		return ErrorResult(mcpWriteErr(err))
+		return ErrorResult(fmt.Sprintf("修改任务失败（task_id=%d）：%s", taskID, mcpWriteErr(err)))
 	}
 	if verifyErr := verifyTaskUpdatePersisted(ctx, caller.Username, taskID, payload); verifyErr != nil {
-		return ErrorResult(verifyErr.Error())
+		return ErrorResult(fmt.Sprintf("修改任务失败（task_id=%d）：%s", taskID, verifyErr.Error()))
 	}
 	go etl.SyncTasks()
 	_ = db.WriteAudit(db.AuditInput{
@@ -395,8 +399,136 @@ func (t UpdateTaskTool) Execute(ctx context.Context, caller CallerInfo, args map
 			"result":  resp,
 		},
 	})
-	out, _ := json.Marshal(map[string]any{"ok": true, "task_id": taskID, "result": resp})
+	out, _ := json.Marshal(map[string]any{"ok": true, "task_id": taskID, "updated_fields": payloadKeys(payload), "result": resp})
 	return TextResult(string(out))
+}
+
+// buildTaskUpdatePayload 将 MCP 参数转换为禅道 PATCH /tasks/:id body。
+// custom_fields（或 fields）中的键会按禅道字段编码原样合并；标准字段优先，避免被误覆盖。
+func buildTaskUpdatePayload(args map[string]interface{}) (map[string]any, error) {
+	payload := map[string]any{}
+
+	if s := strings.TrimSpace(stringArg(args, "name")); s != "" {
+		payload["name"] = s
+	}
+	if s := strings.TrimSpace(stringArg(args, "type")); s != "" {
+		payload["type"] = s
+	}
+	if s := strings.TrimSpace(stringArg(args, "desc")); s != "" {
+		payload["desc"] = s
+	}
+	if s := strings.TrimSpace(stringArg(args, "assigned_to")); s != "" {
+		payload["assignedTo"] = s
+	}
+	if _, ok := args["pri"]; ok {
+		pri := int(floatArg(args, "pri"))
+		if pri < 0 || pri > 4 {
+			return nil, fmt.Errorf("pri must be between 0 and 4")
+		}
+		payload["pri"] = pri
+	}
+	if _, ok := args["estimate"]; ok {
+		estimate := floatArg(args, "estimate")
+		if estimate < 0 {
+			return nil, fmt.Errorf("estimate must be >= 0")
+		}
+		payload["estimate"] = estimate
+	}
+	estStarted := strings.TrimSpace(stringArg(args, "est_started"))
+	if estStarted == "" {
+		estStarted = strings.TrimSpace(stringArg(args, "estStarted"))
+	}
+	if estStarted != "" {
+		if _, err := time.Parse("2006-01-02", estStarted); err != nil {
+			return nil, fmt.Errorf("est_started format must be YYYY-MM-DD")
+		}
+		payload["estStarted"] = estStarted
+	}
+	if s := strings.TrimSpace(stringArg(args, "deadline")); s != "" {
+		if _, err := time.Parse("2006-01-02", s); err != nil {
+			return nil, fmt.Errorf("deadline format must be YYYY-MM-DD")
+		}
+		payload["deadline"] = s
+	}
+	if s := strings.TrimSpace(stringArg(args, "status")); s != "" {
+		switch s {
+		case "wait", "doing", "done", "closed", "pause", "cancel":
+			payload["status"] = s
+		default:
+			return nil, fmt.Errorf("status must be one of wait|doing|done|closed|pause|cancel")
+		}
+	}
+	if storyID := int64(floatArg(args, "story_id")); storyID > 0 {
+		payload["story"] = storyID
+	}
+	if moduleID := int64(floatArg(args, "module_id")); moduleID > 0 {
+		payload["module"] = moduleID
+	}
+	fromBug := int64(floatArg(args, "from_bug"))
+	if fromBug <= 0 {
+		fromBug = int64(floatArg(args, "fromBug"))
+	}
+	if fromBug > 0 {
+		payload["fromBug"] = fromBug
+	}
+	if s := strings.TrimSpace(stringArg(args, "mailto")); s != "" {
+		payload["mailto"] = s
+	}
+	if s := strings.TrimSpace(stringArg(args, "color")); s != "" {
+		payload["color"] = s
+	}
+
+	custom := firstMapArg(args, "custom_fields", "fields")
+	if custom != nil {
+		reserved := map[string]struct{}{
+			"task_id": {}, "taskId": {}, "id": {},
+			"custom_fields": {}, "fields": {},
+		}
+		for k, v := range custom {
+			key := strings.TrimSpace(k)
+			if key == "" {
+				continue
+			}
+			if _, blocked := reserved[key]; blocked {
+				continue
+			}
+			if _, exists := payload[key]; exists {
+				continue // 标准字段优先
+			}
+			payload[key] = v
+		}
+	}
+	return payload, nil
+}
+
+func firstMapArg(args map[string]interface{}, keys ...string) map[string]any {
+	for _, key := range keys {
+		v, ok := args[key]
+		if !ok || v == nil {
+			continue
+		}
+		if m, ok := v.(map[string]any); ok {
+			return m
+		}
+		// 尝试再 marshal/unmarshal，兼容少见类型
+		b, err := json.Marshal(v)
+		if err != nil {
+			continue
+		}
+		out := map[string]any{}
+		if err := json.Unmarshal(b, &out); err == nil {
+			return out
+		}
+	}
+	return nil
+}
+
+func payloadKeys(payload map[string]any) []string {
+	keys := make([]string, 0, len(payload))
+	for k := range payload {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 type CreateStoryTool struct{}
@@ -404,36 +536,56 @@ type CreateStoryTool struct{}
 func (t CreateStoryTool) Definition() ToolDef {
 	return ToolDef{
 		Name:        "createStory",
-		Description: "创建需求（必填：title、product_id；其余字段可选）。",
+		Description: "创建需求（必填：title、product_id、category、pri；其余字段可选）。",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
 				"title":       {Type: "string", Description: "需求标题，必填"},
 				"product_id":  {Type: "number", Description: "产品 ID，必填"},
+				"category":    {Type: "number", Description: "类别（category）ID，必填"},
 				"assigned_to": {Type: "string", Description: "指派给账号，可选"},
 				"estimate":    {Type: "number", Description: "预估工时，可选"},
 				"status":      {Type: "string", Description: "draft|reviewing|active|changing|changed|closed，可选"},
 				"spec":        {Type: "string", Description: "需求描述，可选"},
-				"pri":         {Type: "number", Description: "优先级 0-4，可选"},
+				"pri":         {Type: "number", Description: "优先级 0-4，必填"},
+				"plan_id":     {Type: "number", Description: "产品计划 ID，可选（可用 listPlans 查询）"},
 			},
-			Required: []string{"title", "product_id"},
+			Required: []string{"title", "product_id", "category", "pri"},
 		},
 	}
 }
 
 func (t CreateStoryTool) Execute(ctx context.Context, caller CallerInfo, args map[string]interface{}) ToolCallResult {
 	title := strings.TrimSpace(stringArg(args, "title"))
-	if title == "" {
-		return ErrorResult("title is required")
-	}
 	productID := int64(floatArg(args, "product_id"))
+	categoryID := int64(floatArg(args, "category"))
+	if categoryID <= 0 {
+		categoryID = int64(floatArg(args, "category_id"))
+	}
+	_, hasPri := args["pri"]
+
+	missing := make([]string, 0, 4)
+	if title == "" {
+		missing = append(missing, "title")
+	}
 	if productID <= 0 {
-		return ErrorResult("product_id is required")
+		missing = append(missing, "product_id")
+	}
+	if categoryID <= 0 {
+		missing = append(missing, "category")
+	}
+	if !hasPri {
+		missing = append(missing, "pri")
+	}
+	if len(missing) > 0 {
+		return ErrorResult("缺少必填字段: " + strings.Join(missing, ", "))
 	}
 
 	payload := map[string]any{
-		"title":   title,
-		"product": productID,
+		"title":    title,
+		"product":  productID,
+		"category": categoryID,
+		"module":   categoryID, // 兼容部分实例把“类别”落在 module 字段
 	}
 	if s := strings.TrimSpace(stringArg(args, "assigned_to")); s != "" {
 		payload["assignedTo"] = s
@@ -454,12 +606,13 @@ func (t CreateStoryTool) Execute(ctx context.Context, caller CallerInfo, args ma
 	if s := strings.TrimSpace(stringArg(args, "spec")); s != "" {
 		payload["spec"] = s
 	}
-	if _, ok := args["pri"]; ok {
-		pri := int(floatArg(args, "pri"))
-		if pri < 0 || pri > 4 {
-			return ErrorResult("pri must be between 0 and 4")
-		}
-		payload["pri"] = pri
+	pri := int(floatArg(args, "pri"))
+	if pri < 0 || pri > 4 {
+		return ErrorResult("pri must be between 0 and 4")
+	}
+	payload["pri"] = pri
+	if planID := planIDArg(args); planID > 0 {
+		payload["plan"] = planID
 	}
 
 	resp, err := withZentaoClient(ctx, caller.Username, func(ctx context.Context, cli *zentao.APIClient, token string) (map[string]any, error) {
@@ -509,11 +662,13 @@ func (t UpdateStoryTool) Definition() ToolDef {
 				"story_id":    {Type: "number", Description: "需求 ID"},
 				"title":       {Type: "string", Description: "需求标题，可选"},
 				"product_id":  {Type: "number", Description: "产品 ID，可选"},
+				"category":    {Type: "number", Description: "类别（category）ID，可选"},
 				"assigned_to": {Type: "string", Description: "指派给账号，可选"},
 				"estimate":    {Type: "number", Description: "预估工时，可选"},
 				"status":      {Type: "string", Description: "draft|reviewing|active|changing|changed|closed，可选"},
 				"spec":        {Type: "string", Description: "需求描述，可选"},
 				"pri":         {Type: "number", Description: "优先级 0-4，可选"},
+				"plan_id":     {Type: "number", Description: "产品计划 ID，可选（可用 listPlans 查询）"},
 			},
 			Required: []string{"story_id"},
 		},
@@ -531,6 +686,14 @@ func (t UpdateStoryTool) Execute(ctx context.Context, caller CallerInfo, args ma
 	}
 	if productID := int64(floatArg(args, "product_id")); productID > 0 {
 		payload["product"] = productID
+	}
+	categoryID := int64(floatArg(args, "category"))
+	if categoryID <= 0 {
+		categoryID = int64(floatArg(args, "category_id"))
+	}
+	if categoryID > 0 {
+		payload["category"] = categoryID
+		payload["module"] = categoryID
 	}
 	if s := strings.TrimSpace(stringArg(args, "assigned_to")); s != "" {
 		payload["assignedTo"] = s
@@ -557,6 +720,9 @@ func (t UpdateStoryTool) Execute(ctx context.Context, caller CallerInfo, args ma
 			return ErrorResult("pri must be between 0 and 4")
 		}
 		payload["pri"] = pri
+	}
+	if planID := planIDArg(args); planID > 0 {
+		payload["plan"] = planID
 	}
 	if len(payload) == 0 {
 		return ErrorResult("no fields to update")
@@ -650,6 +816,7 @@ func (t CreateBugTool) Definition() ToolDef {
 				"story_id":     {Type: "number", Description: "关联需求 ID，可选"},
 				"task_id":      {Type: "number", Description: "关联任务 ID，可选"},
 				"type":         {Type: "string", Description: "缺陷类型，可选"},
+				"plan_id":      {Type: "number", Description: "产品计划 ID，可选（可用 listPlans 查询）"},
 			},
 			Required: []string{"title"},
 		},
@@ -692,6 +859,9 @@ func (t CreateBugTool) Execute(ctx context.Context, caller CallerInfo, args map[
 	}
 	if s := strings.TrimSpace(stringArg(args, "type")); s != "" {
 		payload["type"] = s
+	}
+	if planID := planIDArg(args); planID > 0 {
+		payload["plan"] = planID
 	}
 
 	resp, err := withZentaoClient(ctx, caller.Username, func(ctx context.Context, cli *zentao.APIClient, token string) (map[string]any, error) {
@@ -748,6 +918,7 @@ func (t UpdateBugTool) Definition() ToolDef {
 				"resolution":   {Type: "string", Description: "解决方案编码，可选"},
 				"story_id":     {Type: "number", Description: "关联需求 ID，可选"},
 				"task_id":      {Type: "number", Description: "关联任务 ID，可选"},
+				"plan_id":      {Type: "number", Description: "产品计划 ID，可选（可用 listPlans 查询）"},
 			},
 			Required: []string{"bug_id"},
 		},
@@ -795,6 +966,9 @@ func (t UpdateBugTool) Execute(ctx context.Context, caller CallerInfo, args map[
 	}
 	if taskID := int64(floatArg(args, "task_id")); taskID > 0 {
 		payload["task"] = taskID
+	}
+	if planID := planIDArg(args); planID > 0 {
+		payload["plan"] = planID
 	}
 	if len(payload) == 0 {
 		return ErrorResult("no fields to update")
@@ -966,6 +1140,13 @@ func diffStoryPayload(payload map[string]any, storyResp map[string]any) []string
 			diffs = append(diffs, fmt.Sprintf("estimate=%g (期望 %g)", got, want))
 		}
 	}
+	if v, ok := payload["plan"]; ok {
+		want, okWant := int64FromAny(v)
+		got := zentao.ExtractStoryPlanIDs(storyResp)
+		if !okWant || !zentao.ContainsPlanID(got, want) {
+			diffs = append(diffs, fmt.Sprintf("plan=%v (期望 %v)", got, want))
+		}
+	}
 	return diffs
 }
 
@@ -1076,6 +1257,13 @@ func diffBugPayload(payload map[string]any, bugResp map[string]any) []string {
 			diffs = append(diffs, fmt.Sprintf("task=%v (期望 %v)", got, want))
 		}
 	}
+	if v, ok := payload["plan"]; ok {
+		want, okWant := int64FromAny(v)
+		got := zentao.ExtractBugPlanIDs(bugResp)
+		if !okWant || !zentao.ContainsPlanID(got, want) {
+			diffs = append(diffs, fmt.Sprintf("plan=%v (期望 %v)", got, want))
+		}
+	}
 	return diffs
 }
 
@@ -1087,13 +1275,19 @@ func verifyTaskUpdatePersisted(ctx context.Context, sub string, taskID int64, pa
 		return fmt.Errorf("任务更新后回读失败：%s", mcpWriteErr(err))
 	}
 	if diffs := diffTaskPayload(payload, taskResp); len(diffs) > 0 {
-		return fmt.Errorf("任务已请求更新，但禅道未生效：%s。请确认字段值、任务状态流转限制与当前账号权限", strings.Join(diffs, "；"))
+		return fmt.Errorf("任务已请求更新，但禅道未生效：%s。请确认字段值、任务状态流转限制、自定义字段编码与当前账号权限", strings.Join(diffs, "；"))
 	}
 	return nil
 }
 
 func diffTaskPayload(payload map[string]any, taskResp map[string]any) []string {
-	diffs := make([]string, 0, 4)
+	diffs := make([]string, 0, 8)
+	knownKeys := map[string]struct{}{
+		"assignedTo": {}, "pri": {}, "deadline": {}, "status": {},
+		"name": {}, "type": {}, "desc": {}, "estimate": {}, "estStarted": {},
+		"story": {}, "module": {}, "fromBug": {}, "mailto": {}, "color": {},
+	}
+
 	if v, ok := payload["assignedTo"]; ok {
 		want := strings.TrimSpace(fmt.Sprintf("%v", v))
 		got := strings.TrimSpace(zentao.ExtractTaskAssignedTo(taskResp))
@@ -1131,7 +1325,137 @@ func diffTaskPayload(payload map[string]any, taskResp map[string]any) []string {
 			diffs = append(diffs, fmt.Sprintf("status=%q (期望 %q)", got, want))
 		}
 	}
+	if v, ok := payload["name"]; ok {
+		want := strings.TrimSpace(fmt.Sprintf("%v", v))
+		got := strings.TrimSpace(zentao.ExtractTaskString(taskResp, "name", "title"))
+		if want != got {
+			diffs = append(diffs, fmt.Sprintf("name=%q (期望 %q)", emptyAsPlaceholder(got), want))
+		}
+	}
+	if v, ok := payload["type"]; ok {
+		want := strings.TrimSpace(fmt.Sprintf("%v", v))
+		got := strings.TrimSpace(zentao.ExtractTaskString(taskResp, "type"))
+		if !strings.EqualFold(want, got) {
+			diffs = append(diffs, fmt.Sprintf("type=%q (期望 %q)", emptyAsPlaceholder(got), want))
+		}
+	}
+	if v, ok := payload["desc"]; ok {
+		want := strings.TrimSpace(stripHTMLRough(fmt.Sprintf("%v", v)))
+		got := strings.TrimSpace(stripHTMLRough(zentao.ExtractTaskString(taskResp, "desc", "description")))
+		if want != "" && want != got {
+			diffs = append(diffs, fmt.Sprintf("desc 未按期望更新（回读长度=%d，期望长度=%d）", len(got), len(want)))
+		}
+	}
+	if v, ok := payload["estimate"]; ok {
+		want, okWant := floatFromAny(v)
+		got, okGot := zentao.ExtractTaskFloat(taskResp, "estimate")
+		if !okWant || !okGot || !floatAlmostEqual(want, got) {
+			diffs = append(diffs, fmt.Sprintf("estimate=%v (期望 %v)", got, want))
+		}
+	}
+	if v, ok := payload["estStarted"]; ok {
+		want := zentao.NormalizeDateYMD(fmt.Sprintf("%v", v))
+		got := zentao.NormalizeDateYMD(zentao.ExtractTaskString(taskResp, "estStarted", "est_started"))
+		if want != got {
+			diffs = append(diffs, fmt.Sprintf("estStarted=%q (期望 %q)", emptyAsPlaceholder(got), want))
+		}
+	}
+	if v, ok := payload["story"]; ok {
+		want, okWant := int64FromAny(v)
+		got, okGot := zentao.ExtractTaskInt64(taskResp, "story", "storyID", "storyId")
+		if !okWant || !okGot || want != got {
+			diffs = append(diffs, fmt.Sprintf("story=%v (期望 %v)", got, want))
+		}
+	}
+	if v, ok := payload["module"]; ok {
+		want, okWant := int64FromAny(v)
+		got, okGot := zentao.ExtractTaskInt64(taskResp, "module", "moduleID", "moduleId")
+		if !okWant || !okGot || want != got {
+			diffs = append(diffs, fmt.Sprintf("module=%v (期望 %v)", got, want))
+		}
+	}
+	if v, ok := payload["fromBug"]; ok {
+		want, okWant := int64FromAny(v)
+		got, okGot := zentao.ExtractTaskInt64(taskResp, "fromBug", "from_bug")
+		if !okWant || !okGot || want != got {
+			diffs = append(diffs, fmt.Sprintf("fromBug=%v (期望 %v)", got, want))
+		}
+	}
+	if v, ok := payload["mailto"]; ok {
+		want := strings.TrimSpace(fmt.Sprintf("%v", v))
+		got := strings.TrimSpace(zentao.ExtractTaskString(taskResp, "mailto"))
+		if !strings.EqualFold(want, got) {
+			diffs = append(diffs, fmt.Sprintf("mailto=%q (期望 %q)", emptyAsPlaceholder(got), want))
+		}
+	}
+	if v, ok := payload["color"]; ok {
+		want := strings.TrimSpace(fmt.Sprintf("%v", v))
+		got := strings.TrimSpace(zentao.ExtractTaskString(taskResp, "color"))
+		if want != got {
+			diffs = append(diffs, fmt.Sprintf("color=%q (期望 %q)", emptyAsPlaceholder(got), want))
+		}
+	}
+
+	// 自定义字段：尽力按同名键回读比对；禅道 GET 未回传该键时跳过（避免误报）
+	for key, wantVal := range payload {
+		if _, isKnown := knownKeys[key]; isKnown {
+			continue
+		}
+		gotRaw, ok := zentao.ExtractTaskRaw(taskResp, key)
+		if !ok {
+			continue
+		}
+		want := strings.TrimSpace(fmt.Sprintf("%v", wantVal))
+		got := strings.TrimSpace(fmt.Sprintf("%v", gotRaw))
+		if want != got && !strings.EqualFold(want, got) {
+			diffs = append(diffs, fmt.Sprintf("%s=%q (期望 %q)", key, emptyAsPlaceholder(got), want))
+		}
+	}
 	return diffs
+}
+
+func emptyAsPlaceholder(s string) string {
+	if s == "" {
+		return "(empty)"
+	}
+	return s
+}
+
+func stripHTMLRough(s string) string {
+	out := strings.Builder{}
+	inTag := false
+	for _, r := range s {
+		switch {
+		case r == '<':
+			inTag = true
+		case r == '>':
+			inTag = false
+		case !inTag:
+			out.WriteRune(r)
+		}
+	}
+	return strings.TrimSpace(out.String())
+}
+
+func floatFromAny(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case json.Number:
+		f, err := n.Float64()
+		return f, err == nil
+	case string:
+		f, err := strconv.ParseFloat(strings.TrimSpace(n), 64)
+		return f, err == nil
+	default:
+		return 0, false
+	}
 }
 
 func verifyEffortUpdatedPersisted(ctx context.Context, sub string, taskID, effortID int64, payload, updateResp map[string]any) error {
@@ -1455,11 +1779,52 @@ func verifyBugDeletedPersisted(ctx context.Context, sub string, bugID int64, mod
 }
 
 func mcpWriteErr(err error) string {
+	if err == nil {
+		return ""
+	}
 	if he, ok := zentao.IsAPIHTTPError(err); ok {
-		return fmt.Sprintf("zentao api http %d: %s", he.Status, he.Body)
+		detail := formatZentaoAPIErrorBody(he.Body)
+		if detail == "" {
+			detail = "(无响应正文)"
+		}
+		return fmt.Sprintf("禅道接口错误 HTTP %d：%s", he.Status, detail)
 	}
-	if strings.Contains(strings.ToLower(err.Error()), "login") || strings.Contains(strings.ToLower(err.Error()), "token") {
-		return "禅道 API 登录失败，请先在「禅道授权」页重新绑定：" + err.Error()
+	msg := err.Error()
+	lower := strings.ToLower(msg)
+	if strings.Contains(lower, "login") || strings.Contains(lower, "token") || strings.Contains(lower, "unauthorized") {
+		return "禅道 API 登录失败，请先在「禅道授权」页重新绑定：" + msg
 	}
-	return err.Error()
+	return msg
+}
+
+func formatZentaoAPIErrorBody(body string) string {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return ""
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(body), &m); err == nil {
+		for _, key := range []string{"error", "message", "msg"} {
+			if s, ok := m[key].(string); ok {
+				if t := strings.TrimSpace(s); t != "" {
+					return t
+				}
+			}
+		}
+		if errs, ok := m["errors"].(map[string]any); ok && len(errs) > 0 {
+			parts := make([]string, 0, len(errs))
+			for k, v := range errs {
+				parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+			}
+			return "字段错误: " + strings.Join(parts, "; ")
+		}
+		if errs, ok := m["errors"].([]any); ok && len(errs) > 0 {
+			parts := make([]string, 0, len(errs))
+			for _, v := range errs {
+				parts = append(parts, fmt.Sprintf("%v", v))
+			}
+			return "字段错误: " + strings.Join(parts, "; ")
+		}
+	}
+	return body
 }

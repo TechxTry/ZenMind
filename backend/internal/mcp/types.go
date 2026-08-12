@@ -63,8 +63,9 @@ type InputSchema struct {
 }
 
 type Property struct {
-	Type        string `json:"type"`
-	Description string `json:"description"`
+	Type                 string `json:"type"`
+	Description          string `json:"description"`
+	AdditionalProperties *bool  `json:"additionalProperties,omitempty"`
 }
 
 type ToolsListResult struct {
