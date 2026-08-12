@@ -335,7 +335,7 @@ const CalendarAccountsPage: React.FC = () => {
         </div>
         <Form form={form} layout="vertical" initialValues={{ type: 'exchange' }}>
           <Form.Item name="username" label="邮箱" rules={[{ required: true, message: '请输入邮箱' }]}>
-            <Input placeholder="例如：gaojy@digiwin.com" maxLength={200} />
+            <Input placeholder="例如：user@example.com" maxLength={200} />
           </Form.Item>
 
           <Form.Item name="type" label="类型" rules={[{ required: true, message: '请选择类型' }]}>

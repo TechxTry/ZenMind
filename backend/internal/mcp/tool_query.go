@@ -759,6 +759,102 @@ func (t ListPlansTool) Execute(_ context.Context, _ CallerInfo, args map[string]
 	return TextResult(string(out))
 }
 
+// ---- listProjects ----
+
+type ListProjectsTool struct{}
+
+func (t ListProjectsTool) Definition() ToolDef {
+	return ToolDef{
+		Name:        "listProjects",
+		Description: "列出可用项目（来自本地同步数据），可用于 listMyExecutions 的 project_id 过滤。",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"name":   {Type: "string", Description: "项目名称模糊搜索，可选"},
+				"status": {Type: "string", Description: "项目状态过滤，可选；留空默认 wait+doing"},
+				"limit":  {Type: "number", Description: "最多返回条数，默认 50，最大 200"},
+			},
+		},
+	}
+}
+
+func (t ListProjectsTool) Execute(_ context.Context, _ CallerInfo, args map[string]interface{}) ToolCallResult {
+	name := strings.TrimSpace(stringArg(args, "name"))
+	status := strings.TrimSpace(stringArg(args, "status"))
+	limit := int(floatArg(args, "limit"))
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	pg := db.PG
+	if pg == nil {
+		return ErrorResult("db not initialized")
+	}
+
+	query := pg.Model(&models.LocalProject{}).Where("deleted = false")
+	if status != "" {
+		query = query.Where("status = ?", status)
+	} else {
+		query = query.Where("status IN ?", []string{"wait", "doing"})
+	}
+	if name != "" {
+		like := "%" + strings.ToLower(name) + "%"
+		query = query.Where("LOWER(name) LIKE ?", like)
+	}
+
+	var rows []models.LocalProject
+	if err := query.Order("id DESC").Limit(limit).Find(&rows).Error; err != nil {
+		return ErrorResult("query failed: " + err.Error())
+	}
+
+	type row struct {
+		ID        int64  `json:"id"`
+		Name      string `json:"name"`
+		Status    string `json:"status"`
+		ProgramID int64  `json:"program_id"`
+		BeginDate string `json:"begin_date"`
+		EndDate   string `json:"end_date"`
+	}
+
+	result := make([]row, 0, len(rows))
+	for _, p := range rows {
+		var programID int64
+		if p.ParentID != nil {
+			programID = *p.ParentID
+		}
+		beginDate := ""
+		if p.BeginDate != nil {
+			beginDate = p.BeginDate.Format("2006-01-02")
+		}
+		endDate := ""
+		if p.EndDate != nil {
+			endDate = p.EndDate.Format("2006-01-02")
+		}
+		result = append(result, row{
+			ID:        p.ID,
+			Name:      p.Name,
+			Status:    p.Status,
+			ProgramID: programID,
+			BeginDate: beginDate,
+			EndDate:   endDate,
+		})
+	}
+
+	out, _ := json.Marshal(map[string]any{
+		"projects": result,
+		"count":    len(result),
+		"filters": map[string]any{
+			"name":   name,
+			"status": status,
+			"limit":  limit,
+		},
+	})
+	return TextResult(string(out))
+}
+
 // ---- listMyExecutions ----
 
 type ListMyExecutionsTool struct{}
@@ -766,12 +862,12 @@ type ListMyExecutionsTool struct{}
 func (t ListMyExecutionsTool) Definition() ToolDef {
 	return ToolDef{
 		Name:        "listMyExecutions",
-		Description: "查询我可见的执行（迭代）列表，可用于创建任务时选择 execution_id。",
+		Description: "查询执行（迭代/冲刺）列表（来自本地同步数据），可用于创建任务时选择 execution_id。不要求当前用户已有指派任务。",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
-				"status":     {Type: "string", Description: "执行状态过滤（如 wait | doing | suspended | closed）"},
-				"project_id": {Type: "number", Description: "按所属项目 ID 过滤，可选"},
+				"status":     {Type: "string", Description: "执行状态过滤（wait | doing | suspended | closed）；留空默认 wait+doing"},
+				"project_id": {Type: "number", Description: "按所属项目 ID 过滤，可选（可用 listProjects 查询）"},
 				"name":       {Type: "string", Description: "执行名称模糊匹配，可选"},
 				"limit":      {Type: "number", Description: "最多返回条数，默认 30，最大 100"},
 			},
@@ -779,7 +875,7 @@ func (t ListMyExecutionsTool) Definition() ToolDef {
 	}
 }
 
-func (t ListMyExecutionsTool) Execute(_ context.Context, caller CallerInfo, args map[string]interface{}) ToolCallResult {
+func (t ListMyExecutionsTool) Execute(_ context.Context, _ CallerInfo, args map[string]interface{}) ToolCallResult {
 	status := strings.TrimSpace(stringArg(args, "status"))
 	name := strings.TrimSpace(stringArg(args, "name"))
 	projectID := int64(floatArg(args, "project_id"))
@@ -796,24 +892,14 @@ func (t ListMyExecutionsTool) Execute(_ context.Context, caller CallerInfo, args
 		return ErrorResult("db not initialized")
 	}
 
-	zentaoAccount, err := resolveZentaoAccount(caller.Username)
-	if err != nil {
-		return ErrorResult("无法确认禅道账号：" + err.Error())
-	}
-
-	query := pg.Model(&models.LocalExecution{}).
-		Where("deleted = false").
-		Where(`
-			id IN (
-				SELECT DISTINCT execution_id FROM local_tasks
-				WHERE deleted = false AND execution_id > 0 AND assigned_to = ?
-				UNION
-				SELECT DISTINCT execution_id FROM local_bugs
-				WHERE deleted = false AND execution_id > 0 AND assigned_to = ?
-			)`, zentaoAccount, zentaoAccount)
+	// 与 listProducts 一致：作为创建任务的 execution_id 选择器，按本地同步数据列出，
+	// 不再要求「已有指派给我的任务/缺陷」——否则新建冲刺在首次指派前永远不可见。
+	query := pg.Model(&models.LocalExecution{}).Where("deleted = false")
 
 	if status != "" {
 		query = query.Where("status = ?", status)
+	} else {
+		query = query.Where("status IN ?", []string{"wait", "doing"})
 	}
 	if projectID > 0 {
 		query = query.Where("parent_id = ?", projectID)
@@ -865,6 +951,12 @@ func (t ListMyExecutionsTool) Execute(_ context.Context, caller CallerInfo, args
 	b, _ := json.Marshal(map[string]interface{}{
 		"executions": result,
 		"count":      len(result),
+		"filters": map[string]any{
+			"status":     status,
+			"project_id": projectID,
+			"name":       name,
+			"limit":      limit,
+		},
 	})
 	return TextResult(string(b))
 }

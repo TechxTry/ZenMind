@@ -15,6 +15,7 @@ func NewDefaultServer() *Server {
 	reg.Register(UpdateBugTool{})
 	reg.Register(DeleteBugTool{})
 	reg.Register(ListProductsTool{})
+	reg.Register(ListProjectsTool{})
 	reg.Register(ListUsersTool{})
 	reg.Register(ListCategoriesTool{})
 	reg.Register(ListPlansTool{})
