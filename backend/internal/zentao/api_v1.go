@@ -757,7 +757,8 @@ func (c *APIClient) APIGetEffort(ctx context.Context, token string, effortID int
 }
 
 // APIUpdateTask updates task fields via API v1.
-// Supported payload keys are instance-dependent (e.g. assignedTo, pri, deadline, status, left, consumed).
+// Stock ZenTao exposes taskEntry::put (not patch); entry.class.php only parses JSON body on POST/PUT.
+// Partial payloads are merged server-side with the existing task (batchSetPost + task->edit), same as the web edit form.
 func (c *APIClient) APIUpdateTask(ctx context.Context, token string, taskID int64, payload map[string]any) (map[string]any, error) {
 	if taskID <= 0 {
 		return nil, fmt.Errorf("invalid task id")
@@ -766,7 +767,7 @@ func (c *APIClient) APIUpdateTask(ctx context.Context, token string, taskID int6
 		return nil, fmt.Errorf("empty payload")
 	}
 	url := fmt.Sprintf("%s/api.php/v1/tasks/%d", c.BaseURL, taskID)
-	return c.apiJSON(ctx, http.MethodPatch, url, token, payload)
+	return c.apiUpdateEntity(ctx, url, token, payload)
 }
 
 // APIUpdateBug updates bug fields via API v1.
@@ -778,7 +779,7 @@ func (c *APIClient) APIUpdateBug(ctx context.Context, token string, bugID int64,
 		return nil, fmt.Errorf("empty payload")
 	}
 	url := fmt.Sprintf("%s/api.php/v1/bugs/%d", c.BaseURL, bugID)
-	return c.apiJSON(ctx, http.MethodPatch, url, token, payload)
+	return c.apiUpdateEntity(ctx, url, token, payload)
 }
 
 // APIUpdateStory updates story fields via API v1.
@@ -790,7 +791,23 @@ func (c *APIClient) APIUpdateStory(ctx context.Context, token string, storyID in
 		return nil, fmt.Errorf("empty payload")
 	}
 	url := fmt.Sprintf("%s/api.php/v1/stories/%d", c.BaseURL, storyID)
-	return c.apiJSON(ctx, http.MethodPatch, url, token, payload)
+	return c.apiUpdateEntity(ctx, url, token, payload)
+}
+
+func apiUpdateMethodMissing(status int) bool {
+	return status == http.StatusNotFound || status == http.StatusMethodNotAllowed
+}
+
+// apiUpdateEntity sends PUT for stock ZenTao API v1 entity updates; PATCH is kept as fallback for custom builds.
+func (c *APIClient) apiUpdateEntity(ctx context.Context, url, token string, payload map[string]any) (map[string]any, error) {
+	out, err := c.apiJSON(ctx, http.MethodPut, url, token, payload)
+	if err == nil {
+		return out, nil
+	}
+	if he, ok := IsAPIHTTPError(err); ok && apiUpdateMethodMissing(he.Status) {
+		return c.apiJSON(ctx, http.MethodPatch, url, token, payload)
+	}
+	return nil, err
 }
 
 // APIDeleteBug deletes a bug record via API v1.

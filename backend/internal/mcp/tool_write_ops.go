@@ -357,7 +357,7 @@ func (t UpdateTaskTool) Definition() ToolDef {
 				"color":       {Type: "string", Description: "任务颜色标记，可选"},
 				"custom_fields": {
 					Type:                 "object",
-					Description:          "自定义字段键值对，按禅道字段编码原样透传（如 {\"field_xxx\":\"值\"}）；会合并进 PATCH body",
+					Description:          "自定义字段键值对，按禅道字段编码原样透传（如 {\"field_xxx\":\"值\"}）；会合并进 PUT body",
 					AdditionalProperties: &objTrue,
 				},
 			},
@@ -403,7 +403,7 @@ func (t UpdateTaskTool) Execute(ctx context.Context, caller CallerInfo, args map
 	return TextResult(string(out))
 }
 
-// buildTaskUpdatePayload 将 MCP 参数转换为禅道 PATCH /tasks/:id body。
+// buildTaskUpdatePayload 将 MCP 参数转换为禅道 PUT /tasks/:id body。
 // custom_fields（或 fields）中的键会按禅道字段编码原样合并；标准字段优先，避免被误覆盖。
 func buildTaskUpdatePayload(args map[string]interface{}) (map[string]any, error) {
 	payload := map[string]any{}

@@ -160,6 +160,37 @@ func TestAPICreateTaskCopiesSnakeCaseEstStarted(t *testing.T) {
 	}
 }
 
+func TestAPIUpdateTaskUsesPut(t *testing.T) {
+	var method string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api.php/v1/tasks/364029" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		method = r.Method
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if body["estStarted"] != "2026-08-01" || body["deadline"] != "2026-08-05" {
+			t.Fatalf("unexpected body: %#v", body)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": 364029, "estStarted": "2026-08-01", "deadline": "2026-08-05"})
+	}))
+	defer srv.Close()
+
+	cli := NewAPIClient(srv.URL)
+	_, err := cli.APIUpdateTask(context.Background(), "tok", 364029, map[string]any{
+		"estStarted": "2026-08-01",
+		"deadline":   "2026-08-05",
+	})
+	if err != nil {
+		t.Fatalf("APIUpdateTask returned error: %v", err)
+	}
+	if method != http.MethodPut {
+		t.Fatalf("expected PUT, got %s", method)
+	}
+}
+
 func TestParsePlanIDs(t *testing.T) {
 	cases := []struct {
 		name string
